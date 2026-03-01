@@ -1,43 +1,379 @@
-import StatusBadge from "@/components/StatusBadge";
+import { useState } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
+import StatusBadge, { Status } from "@/components/StatusBadge";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { useToast } from "@/hooks/use-toast";
+import { Package, AlertTriangle, XCircle, Plus } from "lucide-react";
 
-const items = [
-  { name: "Basmati Rice (25kg)", sku: "INV-001", qty: 120, threshold: 20, status: "ok" as const },
-  { name: "Olive Oil (5L)", sku: "INV-002", qty: 8, threshold: 10, status: "low" as const },
-  { name: "Flour (50kg)", sku: "INV-003", qty: 0, threshold: 15, status: "out_of_stock" as const },
-  { name: "Sugar (10kg)", sku: "INV-004", qty: 45, threshold: 10, status: "ok" as const },
-  { name: "Salt (1kg)", sku: "INV-005", qty: 6, threshold: 10, status: "low" as const },
-];
+function getInventoryStatus(qty: number, threshold: number): Status {
+  if (qty === 0) return "out_of_stock";
+  if (qty <= threshold) return "low_stock";
+  if (qty <= threshold * 2) return "low";
+  return "ok";
+}
 
 export default function Inventory() {
+  const { appUser } = useAuth();
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+
+  const [shopFilter, setShopFilter] = useState<string>("all");
+  const [brandFilter, setBrandFilter] = useState<string>("all");
+  const [categoryFilter, setCategoryFilter] = useState<string>("all");
+  const [search, setSearch] = useState("");
+
+  const [adjustModal, setAdjustModal] = useState<{ open: boolean; item: any | null }>({ open: false, item: null });
+  const [adjustType, setAdjustType] = useState<string>("RECEIVED");
+  const [adjustQty, setAdjustQty] = useState("");
+  const [adjustNote, setAdjustNote] = useState("");
+
+  const [addModal, setAddModal] = useState(false);
+  const [newProduct, setNewProduct] = useState({ name: "", sku: "", brand_id: "", category: "Other", unit: "pcs", shop_id: "", quantity: "0", min_threshold: "10" });
+
+  // Fetch data
+  const { data: inventory = [], isLoading } = useQuery({
+    queryKey: ["inventory"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("inventory")
+        .select("*, product:products(*,brand:brands(*)), shop:shops(*)");
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const { data: shops = [] } = useQuery({
+    queryKey: ["shops"],
+    queryFn: async () => {
+      const { data } = await supabase.from("shops").select("*").eq("is_active", true);
+      return data || [];
+    },
+  });
+
+  const { data: brands = [] } = useQuery({
+    queryKey: ["brands"],
+    queryFn: async () => {
+      const { data } = await supabase.from("brands").select("*").eq("is_active", true);
+      return data || [];
+    },
+  });
+
+  // Mutations
+  const adjustStock = useMutation({
+    mutationFn: async () => {
+      const item = adjustModal.item;
+      if (!item || !appUser) return;
+      const change = Number(adjustQty);
+      const newQty = Number(item.quantity) + change;
+
+      const { error: invErr } = await supabase
+        .from("inventory")
+        .update({ quantity: newQty, last_updated_at: new Date().toISOString(), updated_by_user_id: appUser.id })
+        .eq("id", item.id);
+      if (invErr) throw invErr;
+
+      const { error: logErr } = await supabase.from("inventory_logs").insert({
+        shop_id: item.shop_id,
+        product_id: item.product_id,
+        change_type: adjustType as any,
+        quantity_change: change,
+        note: adjustNote || null,
+        created_by_user_id: appUser.id,
+      });
+      if (logErr) throw logErr;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["inventory"] });
+      setAdjustModal({ open: false, item: null });
+      setAdjustQty("");
+      setAdjustNote("");
+      toast({ title: "Stock adjusted successfully" });
+    },
+    onError: (err: any) => toast({ title: "Error", description: err.message, variant: "destructive" }),
+  });
+
+  const addProduct = useMutation({
+    mutationFn: async () => {
+      if (!appUser) return;
+      const { data: prod, error: prodErr } = await supabase.from("products").insert({
+        name: newProduct.name,
+        sku: newProduct.sku,
+        brand_id: newProduct.brand_id || null,
+        category: newProduct.category as any,
+        unit: newProduct.unit,
+      }).select().single();
+      if (prodErr) throw prodErr;
+
+      if (newProduct.shop_id) {
+        const { error: invErr } = await supabase.from("inventory").insert({
+          shop_id: newProduct.shop_id,
+          product_id: prod.id,
+          quantity: Number(newProduct.quantity),
+          min_threshold: Number(newProduct.min_threshold),
+          updated_by_user_id: appUser.id,
+        });
+        if (invErr) throw invErr;
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["inventory"] });
+      setAddModal(false);
+      setNewProduct({ name: "", sku: "", brand_id: "", category: "Other", unit: "pcs", shop_id: "", quantity: "0", min_threshold: "10" });
+      toast({ title: "Product added successfully" });
+    },
+    onError: (err: any) => toast({ title: "Error", description: err.message, variant: "destructive" }),
+  });
+
+  // Filter
+  const filtered = inventory.filter((item: any) => {
+    if (shopFilter !== "all" && item.shop_id !== shopFilter) return false;
+    if (brandFilter !== "all" && item.product?.brand_id !== brandFilter) return false;
+    if (categoryFilter !== "all" && item.product?.category !== categoryFilter) return false;
+    if (search) {
+      const s = search.toLowerCase();
+      if (!item.product?.name?.toLowerCase().includes(s) && !item.product?.sku?.toLowerCase().includes(s)) return false;
+    }
+    return true;
+  });
+
+  // Stats
+  const totalSKUs = inventory.length;
+  const lowStock = inventory.filter((i: any) => Number(i.quantity) > 0 && Number(i.quantity) <= Number(i.min_threshold)).length;
+  const outOfStock = inventory.filter((i: any) => Number(i.quantity) === 0).length;
+
+  const canAdd = appUser?.role === "OWNER" || appUser?.role === "ADMIN";
+
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h2 className="text-lg font-semibold text-foreground">Inventory Items</h2>
+    <div className="space-y-6">
+      {/* Summary Cards */}
+      <div className="grid gap-4 sm:grid-cols-3">
+        <div className="rounded-lg border border-border bg-card p-5 shadow-sm">
+          <div className="flex items-center justify-between">
+            <p className="text-sm font-medium text-muted-foreground">Total SKUs</p>
+            <Package className="h-5 w-5 text-muted-foreground" />
+          </div>
+          <p className="mt-2 text-3xl font-bold text-foreground">{totalSKUs}</p>
+        </div>
+        <div className="rounded-lg border border-warning/30 bg-warning/5 p-5 shadow-sm">
+          <div className="flex items-center justify-between">
+            <p className="text-sm font-medium text-warning">Low Stock Items</p>
+            <AlertTriangle className="h-5 w-5 text-warning" />
+          </div>
+          <p className="mt-2 text-3xl font-bold text-warning">{lowStock}</p>
+        </div>
+        <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-5 shadow-sm">
+          <div className="flex items-center justify-between">
+            <p className="text-sm font-medium text-destructive">Out of Stock</p>
+            <XCircle className="h-5 w-5 text-destructive" />
+          </div>
+          <p className="mt-2 text-3xl font-bold text-destructive">{outOfStock}</p>
+        </div>
       </div>
+
+      {/* Filters */}
+      <div className="flex flex-wrap items-center gap-3">
+        <Select value={shopFilter} onValueChange={setShopFilter}>
+          <SelectTrigger className="w-48"><SelectValue placeholder="All Shops" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Shops</SelectItem>
+            {shops.map((s: any) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
+          </SelectContent>
+        </Select>
+        <Select value={brandFilter} onValueChange={setBrandFilter}>
+          <SelectTrigger className="w-40"><SelectValue placeholder="All Brands" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Brands</SelectItem>
+            {brands.map((b: any) => <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>)}
+          </SelectContent>
+        </Select>
+        <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+          <SelectTrigger className="w-40"><SelectValue placeholder="All Categories" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Categories</SelectItem>
+            <SelectItem value="Dhuli">Dhuli</SelectItem>
+            <SelectItem value="Dryfruits">Dryfruits</SelectItem>
+            <SelectItem value="Oil">Oil</SelectItem>
+            <SelectItem value="Other">Other</SelectItem>
+          </SelectContent>
+        </Select>
+        <Input placeholder="Search product or SKU..." value={search} onChange={(e) => setSearch(e.target.value)} className="w-56" />
+        {canAdd && (
+          <Button onClick={() => setAddModal(true)} className="ml-auto gap-2">
+            <Plus className="h-4 w-4" /> Add Product
+          </Button>
+        )}
+      </div>
+
+      {/* Table */}
       <div className="rounded-lg border border-border bg-card shadow-sm overflow-x-auto">
-        <table className="w-full">
-          <thead>
-            <tr className="border-b border-border text-left">
-              <th className="px-5 py-3 text-xs font-semibold uppercase text-muted-foreground">Product</th>
-              <th className="px-5 py-3 text-xs font-semibold uppercase text-muted-foreground">SKU</th>
-              <th className="px-5 py-3 text-xs font-semibold uppercase text-muted-foreground">Quantity</th>
-              <th className="px-5 py-3 text-xs font-semibold uppercase text-muted-foreground">Threshold</th>
-              <th className="px-5 py-3 text-xs font-semibold uppercase text-muted-foreground">Status</th>
-            </tr>
-          </thead>
-          <tbody>
-            {items.map((item) => (
-              <tr key={item.sku} className="border-b border-border last:border-0">
-                <td className="px-5 py-3 text-sm font-medium text-foreground">{item.name}</td>
-                <td className="px-5 py-3 text-sm text-muted-foreground">{item.sku}</td>
-                <td className="px-5 py-3 text-sm text-foreground">{item.qty}</td>
-                <td className="px-5 py-3 text-sm text-muted-foreground">{item.threshold}</td>
-                <td className="px-5 py-3"><StatusBadge status={item.status} /></td>
+        {isLoading ? (
+          <div className="flex items-center justify-center py-12">
+            <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+          </div>
+        ) : filtered.length === 0 ? (
+          <div className="py-12 text-center text-muted-foreground">No inventory items found. Add products to get started.</div>
+        ) : (
+          <table className="w-full">
+            <thead>
+              <tr className="border-b border-border text-left">
+                <th className="px-4 py-3 text-xs font-semibold uppercase text-muted-foreground">Product</th>
+                <th className="px-4 py-3 text-xs font-semibold uppercase text-muted-foreground">SKU</th>
+                <th className="px-4 py-3 text-xs font-semibold uppercase text-muted-foreground">Brand</th>
+                <th className="px-4 py-3 text-xs font-semibold uppercase text-muted-foreground">Category</th>
+                <th className="px-4 py-3 text-xs font-semibold uppercase text-muted-foreground">Shop</th>
+                <th className="px-4 py-3 text-xs font-semibold uppercase text-muted-foreground">Qty</th>
+                <th className="px-4 py-3 text-xs font-semibold uppercase text-muted-foreground">Min Threshold</th>
+                <th className="px-4 py-3 text-xs font-semibold uppercase text-muted-foreground">Status</th>
+                <th className="px-4 py-3 text-xs font-semibold uppercase text-muted-foreground">Last Updated</th>
+                <th className="px-4 py-3 text-xs font-semibold uppercase text-muted-foreground">Actions</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {filtered.map((item: any) => {
+                const qty = Number(item.quantity);
+                const threshold = Number(item.min_threshold);
+                const status = getInventoryStatus(qty, threshold);
+                return (
+                  <tr key={item.id} className="border-b border-border last:border-0">
+                    <td className="px-4 py-3 text-sm font-medium text-foreground">{item.product?.name}</td>
+                    <td className="px-4 py-3 text-sm text-muted-foreground">{item.product?.sku}</td>
+                    <td className="px-4 py-3 text-sm text-muted-foreground">{item.product?.brand?.name || "—"}</td>
+                    <td className="px-4 py-3 text-sm text-muted-foreground">{item.product?.category}</td>
+                    <td className="px-4 py-3 text-sm text-muted-foreground">{item.shop?.name}</td>
+                    <td className={`px-4 py-3 text-sm font-medium ${status === "low_stock" || status === "out_of_stock" ? "text-destructive" : "text-foreground"}`}>
+                      {qty}
+                    </td>
+                    <td className="px-4 py-3 text-sm text-muted-foreground">{threshold}</td>
+                    <td className="px-4 py-3"><StatusBadge status={status} /></td>
+                    <td className="px-4 py-3 text-sm text-muted-foreground">
+                      {new Date(item.last_updated_at).toLocaleDateString()}
+                    </td>
+                    <td className="px-4 py-3">
+                      <Button size="sm" variant="outline" onClick={() => setAdjustModal({ open: true, item })}>
+                        Adjust Stock
+                      </Button>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        )}
       </div>
+
+      {/* Adjust Stock Modal */}
+      <Dialog open={adjustModal.open} onOpenChange={(open) => !open && setAdjustModal({ open: false, item: null })}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Adjust Stock — {adjustModal.item?.product?.name}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-2">
+              <Label>Type</Label>
+              <Select value={adjustType} onValueChange={setAdjustType}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="RECEIVED">Received</SelectItem>
+                  <SelectItem value="ADJUSTED">Adjusted</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Quantity Change (positive = add, negative = deduct)</Label>
+              <Input type="number" value={adjustQty} onChange={(e) => setAdjustQty(e.target.value)} placeholder="e.g. 50 or -10" />
+            </div>
+            <div className="space-y-2">
+              <Label>Note</Label>
+              <Input value={adjustNote} onChange={(e) => setAdjustNote(e.target.value)} placeholder="Optional note..." />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setAdjustModal({ open: false, item: null })}>Cancel</Button>
+            <Button onClick={() => adjustStock.mutate()} disabled={!adjustQty || adjustStock.isPending}>
+              {adjustStock.isPending ? "Saving..." : "Save Adjustment"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Add Product Modal */}
+      <Dialog open={addModal} onOpenChange={setAddModal}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Add New Product</DialogTitle>
+          </DialogHeader>
+          <div className="grid gap-4 py-2">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Product Name</Label>
+                <Input value={newProduct.name} onChange={(e) => setNewProduct(p => ({ ...p, name: e.target.value }))} />
+              </div>
+              <div className="space-y-2">
+                <Label>SKU</Label>
+                <Input value={newProduct.sku} onChange={(e) => setNewProduct(p => ({ ...p, sku: e.target.value }))} />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Brand</Label>
+                <Select value={newProduct.brand_id} onValueChange={(v) => setNewProduct(p => ({ ...p, brand_id: v }))}>
+                  <SelectTrigger><SelectValue placeholder="Select brand" /></SelectTrigger>
+                  <SelectContent>
+                    {brands.map((b: any) => <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Category</Label>
+                <Select value={newProduct.category} onValueChange={(v) => setNewProduct(p => ({ ...p, category: v }))}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Dhuli">Dhuli</SelectItem>
+                    <SelectItem value="Dryfruits">Dryfruits</SelectItem>
+                    <SelectItem value="Oil">Oil</SelectItem>
+                    <SelectItem value="Other">Other</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="grid grid-cols-3 gap-4">
+              <div className="space-y-2">
+                <Label>Unit</Label>
+                <Input value={newProduct.unit} onChange={(e) => setNewProduct(p => ({ ...p, unit: e.target.value }))} />
+              </div>
+              <div className="space-y-2">
+                <Label>Initial Qty</Label>
+                <Input type="number" value={newProduct.quantity} onChange={(e) => setNewProduct(p => ({ ...p, quantity: e.target.value }))} />
+              </div>
+              <div className="space-y-2">
+                <Label>Min Threshold</Label>
+                <Input type="number" value={newProduct.min_threshold} onChange={(e) => setNewProduct(p => ({ ...p, min_threshold: e.target.value }))} />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label>Assign to Shop</Label>
+              <Select value={newProduct.shop_id} onValueChange={(v) => setNewProduct(p => ({ ...p, shop_id: v }))}>
+                <SelectTrigger><SelectValue placeholder="Select shop" /></SelectTrigger>
+                <SelectContent>
+                  {shops.map((s: any) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setAddModal(false)}>Cancel</Button>
+            <Button onClick={() => addProduct.mutate()} disabled={!newProduct.name || !newProduct.sku || addProduct.isPending}>
+              {addProduct.isPending ? "Adding..." : "Add Product"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

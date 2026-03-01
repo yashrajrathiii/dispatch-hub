@@ -1,11 +1,12 @@
 import { cn } from "@/lib/utils";
 
-type Status = "ok" | "confirmed" | "low" | "pending" | "out_of_stock" | "cancelled";
+export type Status = "ok" | "confirmed" | "low" | "low_stock" | "pending" | "out_of_stock" | "cancelled";
 
 const statusConfig: Record<Status, { label: string; className: string }> = {
   ok: { label: "OK", className: "bg-success/10 text-success" },
   confirmed: { label: "Confirmed", className: "bg-success/10 text-success" },
-  low: { label: "Low Stock", className: "bg-warning/10 text-warning" },
+  low: { label: "Low", className: "bg-warning/10 text-warning" },
+  low_stock: { label: "Low Stock", className: "bg-destructive/10 text-destructive" },
   pending: { label: "Pending", className: "bg-warning/10 text-warning" },
   out_of_stock: { label: "Out of Stock", className: "bg-destructive/10 text-destructive" },
   cancelled: { label: "Cancelled", className: "bg-destructive/10 text-destructive" },

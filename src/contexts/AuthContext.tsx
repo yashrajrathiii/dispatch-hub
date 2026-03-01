@@ -1,22 +1,24 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from "react";
 import { Session, User } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
-import { useNavigate } from "react-router-dom";
 
-export type AppRole = "owner" | "admin" | "staff" | "accountant" | "driver";
+export type AppRole = "OWNER" | "ADMIN" | "STAFF" | "ACCOUNTANT" | "DRIVER";
 
-interface Profile {
+interface AppUser {
   id: string;
+  auth_user_id: string;
+  name: string;
   email: string;
-  full_name: string | null;
-  avatar_url: string | null;
+  phone: string | null;
   role: AppRole;
+  assigned_shop_id: string | null;
+  is_active: boolean;
 }
 
 interface AuthContextType {
   session: Session | null;
   user: User | null;
-  profile: Profile | null;
+  appUser: AppUser | null;
   loading: boolean;
   signIn: (email: string, password: string) => Promise<void>;
   signUp: (email: string, password: string, fullName: string) => Promise<void>;
@@ -28,16 +30,16 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [user, setUser] = useState<User | null>(null);
-  const [profile, setProfile] = useState<Profile | null>(null);
+  const [appUser, setAppUser] = useState<AppUser | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const fetchProfile = async (userId: string) => {
+  const fetchAppUser = async (authUserId: string) => {
     const { data } = await supabase
-      .from("profiles")
+      .from("users")
       .select("*")
-      .eq("id", userId)
+      .eq("auth_user_id", authUserId)
       .single();
-    if (data) setProfile(data as Profile);
+    if (data) setAppUser(data as unknown as AppUser);
   };
 
   useEffect(() => {
@@ -46,9 +48,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setSession(session);
         setUser(session?.user ?? null);
         if (session?.user) {
-          setTimeout(() => fetchProfile(session.user.id), 0);
+          setTimeout(() => fetchAppUser(session.user.id), 0);
         } else {
-          setProfile(null);
+          setAppUser(null);
         }
         setLoading(false);
       }
@@ -58,7 +60,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setSession(session);
       setUser(session?.user ?? null);
       if (session?.user) {
-        fetchProfile(session.user.id);
+        fetchAppUser(session.user.id);
       }
       setLoading(false);
     });
@@ -82,11 +84,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signOut = async () => {
     await supabase.auth.signOut();
-    setProfile(null);
+    setAppUser(null);
   };
 
   return (
-    <AuthContext.Provider value={{ session, user, profile, loading, signIn, signUp, signOut }}>
+    <AuthContext.Provider value={{ session, user, appUser, loading, signIn, signUp, signOut }}>
       {children}
     </AuthContext.Provider>
   );
