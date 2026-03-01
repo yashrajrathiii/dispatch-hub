@@ -9,7 +9,7 @@ interface Props {
 }
 
 export default function TopBar({ title }: Props) {
-  const { profile, signOut } = useAuth();
+  const { appUser, signOut } = useAuth();
   const navigate = useNavigate();
 
   const handleLogout = async () => {
@@ -17,9 +17,9 @@ export default function TopBar({ title }: Props) {
     navigate("/login");
   };
 
-  const initials = profile?.full_name
-    ? profile.full_name.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2)
-    : profile?.email?.[0]?.toUpperCase() ?? "U";
+  const initials = appUser?.name
+    ? appUser.name.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2)
+    : appUser?.email?.[0]?.toUpperCase() ?? "U";
 
   return (
     <header className="flex h-16 items-center justify-between border-b border-border bg-card px-6">
@@ -40,8 +40,8 @@ export default function TopBar({ title }: Props) {
             </AvatarFallback>
           </Avatar>
           <div className="hidden sm:block">
-            <p className="text-sm font-medium text-foreground leading-none">{profile?.full_name || profile?.email}</p>
-            <p className="text-xs text-muted-foreground capitalize">{profile?.role}</p>
+            <p className="text-sm font-medium text-foreground leading-none">{appUser?.name || appUser?.email}</p>
+            <p className="text-xs text-muted-foreground capitalize">{appUser?.role?.toLowerCase()}</p>
           </div>
         </div>
 

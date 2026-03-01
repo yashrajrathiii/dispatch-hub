@@ -7,7 +7,7 @@ interface Props {
 }
 
 export default function ProtectedRoute({ children, allowedRoles }: Props) {
-  const { session, profile, loading } = useAuth();
+  const { session, appUser, loading } = useAuth();
 
   if (loading) {
     return (
@@ -18,13 +18,13 @@ export default function ProtectedRoute({ children, allowedRoles }: Props) {
   }
 
   if (!session) return <Navigate to="/login" replace />;
-  if (!profile) return (
+  if (!appUser) return (
     <div className="flex min-h-screen items-center justify-center">
       <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
     </div>
   );
 
-  if (allowedRoles && !allowedRoles.includes(profile.role)) {
+  if (allowedRoles && !allowedRoles.includes(appUser.role)) {
     return <Navigate to="/unauthorized" replace />;
   }
 

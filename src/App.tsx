@@ -30,31 +30,31 @@ const App = () => (
               <Route path="/" element={<Dashboard />} />
             </Route>
 
-            <Route element={<ProtectedRoute allowedRoles={["owner", "admin", "staff"]}><AppLayout title="Inventory" /></ProtectedRoute>}>
+            <Route element={<ProtectedRoute allowedRoles={["OWNER", "ADMIN", "STAFF"]}><AppLayout title="Inventory" /></ProtectedRoute>}>
               <Route path="/inventory" element={<Inventory />} />
             </Route>
 
-            <Route element={<ProtectedRoute allowedRoles={["owner", "admin", "staff"]}><AppLayout title="Price List" /></ProtectedRoute>}>
+            <Route element={<ProtectedRoute allowedRoles={["OWNER", "ADMIN", "STAFF"]}><AppLayout title="Price List" /></ProtectedRoute>}>
               <Route path="/price-list" element={<PlaceholderPage title="Price List" />} />
             </Route>
 
-            <Route element={<ProtectedRoute allowedRoles={["owner", "admin", "staff"]}><AppLayout title="Orders" /></ProtectedRoute>}>
+            <Route element={<ProtectedRoute allowedRoles={["OWNER", "ADMIN", "STAFF"]}><AppLayout title="Orders" /></ProtectedRoute>}>
               <Route path="/orders" element={<PlaceholderPage title="Orders" />} />
             </Route>
 
-            <Route element={<ProtectedRoute allowedRoles={["owner", "admin", "staff"]}><AppLayout title="Walk-in Purchase" /></ProtectedRoute>}>
+            <Route element={<ProtectedRoute allowedRoles={["OWNER", "ADMIN", "STAFF"]}><AppLayout title="Walk-in Purchase" /></ProtectedRoute>}>
               <Route path="/walk-in" element={<PlaceholderPage title="Walk-in Purchase" />} />
             </Route>
 
-            <Route element={<ProtectedRoute allowedRoles={["owner", "admin", "staff", "driver"]}><AppLayout title="Dispatch" /></ProtectedRoute>}>
+            <Route element={<ProtectedRoute allowedRoles={["OWNER", "ADMIN", "STAFF", "DRIVER"]}><AppLayout title="Dispatch" /></ProtectedRoute>}>
               <Route path="/dispatch" element={<PlaceholderPage title="Dispatch" />} />
             </Route>
 
-            <Route element={<ProtectedRoute allowedRoles={["owner", "admin", "staff"]}><AppLayout title="Buyers" /></ProtectedRoute>}>
+            <Route element={<ProtectedRoute allowedRoles={["OWNER", "ADMIN", "STAFF"]}><AppLayout title="Buyers" /></ProtectedRoute>}>
               <Route path="/buyers" element={<PlaceholderPage title="Buyers" />} />
             </Route>
 
-            <Route element={<ProtectedRoute allowedRoles={["owner", "admin"]}><AppLayout title="Settings" /></ProtectedRoute>}>
+            <Route element={<ProtectedRoute allowedRoles={["OWNER", "ADMIN"]}><AppLayout title="Settings" /></ProtectedRoute>}>
               <Route path="/settings" element={<PlaceholderPage title="Settings" />} />
             </Route>
 

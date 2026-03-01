@@ -9,22 +9,22 @@ import {
   Settings,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
-import { useAuth } from "@/contexts/AuthContext";
+import { useAuth, AppRole } from "@/contexts/AuthContext";
 
-const allItems = [
-  { title: "Dashboard", url: "/", icon: LayoutDashboard, roles: ["owner", "admin", "staff", "accountant", "driver"] },
-  { title: "Inventory", url: "/inventory", icon: Package, roles: ["owner", "admin", "staff"] },
-  { title: "Price List", url: "/price-list", icon: DollarSign, roles: ["owner", "admin", "staff"] },
-  { title: "Orders", url: "/orders", icon: ShoppingCart, roles: ["owner", "admin", "staff"] },
-  { title: "Walk-in Purchase", url: "/walk-in", icon: Store, roles: ["owner", "admin", "staff"] },
-  { title: "Dispatch", url: "/dispatch", icon: Truck, roles: ["owner", "admin", "staff", "driver"] },
-  { title: "Buyers", url: "/buyers", icon: Users, roles: ["owner", "admin", "staff"] },
-  { title: "Settings", url: "/settings", icon: Settings, roles: ["owner", "admin"] },
+const allItems: { title: string; url: string; icon: any; roles: AppRole[] }[] = [
+  { title: "Dashboard", url: "/", icon: LayoutDashboard, roles: ["OWNER", "ADMIN", "STAFF", "ACCOUNTANT", "DRIVER"] },
+  { title: "Inventory", url: "/inventory", icon: Package, roles: ["OWNER", "ADMIN", "STAFF"] },
+  { title: "Price List", url: "/price-list", icon: DollarSign, roles: ["OWNER", "ADMIN", "STAFF"] },
+  { title: "Orders", url: "/orders", icon: ShoppingCart, roles: ["OWNER", "ADMIN", "STAFF"] },
+  { title: "Walk-in Purchase", url: "/walk-in", icon: Store, roles: ["OWNER", "ADMIN", "STAFF"] },
+  { title: "Dispatch", url: "/dispatch", icon: Truck, roles: ["OWNER", "ADMIN", "STAFF", "DRIVER"] },
+  { title: "Buyers", url: "/buyers", icon: Users, roles: ["OWNER", "ADMIN", "STAFF"] },
+  { title: "Settings", url: "/settings", icon: Settings, roles: ["OWNER", "ADMIN"] },
 ];
 
 export default function AppSidebar() {
-  const { profile } = useAuth();
-  const role = profile?.role ?? "staff";
+  const { appUser } = useAuth();
+  const role = appUser?.role ?? "STAFF";
   const items = allItems.filter((item) => item.roles.includes(role));
 
   return (
