@@ -24,7 +24,7 @@ interface NavItem {
 const allItems: NavItem[] = [
   { title: "Dashboard", url: "/", icon: LayoutDashboard, roles: ["OWNER", "ADMIN", "STAFF", "ACCOUNTANT", "DRIVER"] },
   { title: "Inventory", url: "/inventory", icon: Package, roles: ["OWNER", "ADMIN", "STAFF"] },
-  { title: "Price List", url: "/price-list", icon: DollarSign, roles: ["OWNER", "ADMIN", "STAFF"] },
+  { title: "Price List", url: "/price-list", icon: DollarSign, roles: ["OWNER", "ADMIN"] },
   { title: "Orders", url: "/orders", icon: ShoppingCart, roles: ["OWNER", "ADMIN", "STAFF"] },
   { title: "Walk-in Purchase", url: "/walk-in", icon: Store, roles: ["OWNER", "ADMIN", "STAFF"] },
   { title: "Dispatch", url: "/dispatch", icon: Truck, roles: ["OWNER", "ADMIN", "STAFF", "DRIVER"] },
