@@ -10,6 +10,9 @@ import Login from "@/pages/Login";
 import Unauthorized from "@/pages/Unauthorized";
 import Dashboard from "@/pages/Dashboard";
 import Inventory from "@/pages/Inventory";
+import PriceList from "@/pages/PriceList";
+import Orders from "@/pages/Orders";
+import OrderDetail from "@/pages/OrderDetail";
 import PlaceholderPage from "@/pages/PlaceholderPage";
 import SettingsShops from "@/pages/SettingsShops";
 import SettingsBrands from "@/pages/SettingsBrands";
@@ -36,12 +39,13 @@ const App = () => (
               <Route path="/inventory" element={<Inventory />} />
             </Route>
 
-            <Route element={<ProtectedRoute allowedRoles={["OWNER", "ADMIN", "STAFF"]}><AppLayout title="Price List" /></ProtectedRoute>}>
-              <Route path="/price-list" element={<PlaceholderPage title="Price List" />} />
+            <Route element={<ProtectedRoute allowedRoles={["OWNER", "ADMIN"]}><AppLayout title="Price List" /></ProtectedRoute>}>
+              <Route path="/price-list" element={<PriceList />} />
             </Route>
 
             <Route element={<ProtectedRoute allowedRoles={["OWNER", "ADMIN", "STAFF"]}><AppLayout title="Orders" /></ProtectedRoute>}>
-              <Route path="/orders" element={<PlaceholderPage title="Orders" />} />
+              <Route path="/orders" element={<Orders />} />
+              <Route path="/orders/:id" element={<OrderDetail />} />
             </Route>
 
             <Route element={<ProtectedRoute allowedRoles={["OWNER", "ADMIN", "STAFF"]}><AppLayout title="Walk-in Purchase" /></ProtectedRoute>}>
