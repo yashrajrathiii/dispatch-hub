@@ -11,6 +11,8 @@ import Unauthorized from "@/pages/Unauthorized";
 import Dashboard from "@/pages/Dashboard";
 import Inventory from "@/pages/Inventory";
 import PlaceholderPage from "@/pages/PlaceholderPage";
+import SettingsShops from "@/pages/SettingsShops";
+import SettingsBrands from "@/pages/SettingsBrands";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -56,6 +58,8 @@ const App = () => (
 
             <Route element={<ProtectedRoute allowedRoles={["OWNER", "ADMIN"]}><AppLayout title="Settings" /></ProtectedRoute>}>
               <Route path="/settings" element={<PlaceholderPage title="Settings" />} />
+              <Route path="/settings/shops" element={<SettingsShops />} />
+              <Route path="/settings/brands" element={<SettingsBrands />} />
             </Route>
 
             <Route path="*" element={<NotFound />} />
