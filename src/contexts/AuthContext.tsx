@@ -38,7 +38,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       .from("users")
       .select("*")
       .eq("auth_user_id", authUserId)
-      .single();
+      .maybeSingle();
     if (data) setAppUser(data as unknown as AppUser);
   };
 
