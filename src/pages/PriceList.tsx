@@ -22,7 +22,6 @@ interface PriceRow {
   product: Product;
   dealer: number;
   retailer: number;
-  walkin: number;
 }
 
 export default function PriceList() {
@@ -33,7 +32,7 @@ export default function PriceList() {
   const [historyOpen, setHistoryOpen] = useState(false);
   const [newName, setNewName] = useState("");
   const [effectiveDate, setEffectiveDate] = useState<Date>(new Date());
-  const [editPrices, setEditPrices] = useState<Record<string, { dealer: string; retailer: string; walkin: string }>>({});
+  const [editPrices, setEditPrices] = useState<Record<string, { dealer: string; retailer: string }>>({});
 
   // Fetch active price list
   const { data: activePriceList } = useQuery({
@@ -92,12 +91,10 @@ export default function PriceList() {
   const priceRows: PriceRow[] = products.map((p) => {
     const dealer = activePrices.find((pp) => pp.product_id === p.id && pp.buyer_category === "DEALER");
     const retailer = activePrices.find((pp) => pp.product_id === p.id && pp.buyer_category === "RETAILER");
-    const walkin = activePrices.find((pp) => pp.product_id === p.id && pp.buyer_category === "WALKIN");
     return {
       product: p,
       dealer: dealer ? Number(dealer.price_per_unit) : 0,
       retailer: retailer ? Number(retailer.price_per_unit) : 0,
-      walkin: walkin ? Number(walkin.price_per_unit) : 0,
     };
   });
 
@@ -110,13 +107,12 @@ export default function PriceList() {
 
   // Open create modal and pre-fill prices
   const handleOpenCreate = () => {
-    const prices: Record<string, { dealer: string; retailer: string; walkin: string }> = {};
+    const prices: Record<string, { dealer: string; retailer: string }> = {};
     products.forEach((p) => {
       const row = priceRows.find((r) => r.product.id === p.id);
-      prices[p.id] = {
+    prices[p.id] = {
         dealer: String(row?.dealer ?? 0),
         retailer: String(row?.retailer ?? 0),
-        walkin: String(row?.walkin ?? 0),
       };
     });
     setEditPrices(prices);
@@ -149,12 +145,12 @@ export default function PriceList() {
       const rows: Array<{
         price_list_id: string;
         product_id: string;
-        buyer_category: "DEALER" | "RETAILER" | "WALKIN";
+        buyer_category: "DEALER" | "RETAILER";
         price_per_unit: number;
       }> = [];
       for (const [productId, vals] of Object.entries(editPrices)) {
-        (["DEALER", "RETAILER", "WALKIN"] as const).forEach((cat) => {
-          const key = cat.toLowerCase() as "dealer" | "retailer" | "walkin";
+        (["DEALER", "RETAILER"] as const).forEach((cat) => {
+          const key = cat.toLowerCase() as "dealer" | "retailer";
           rows.push({
             price_list_id: newList.id,
             product_id: productId,
@@ -224,7 +220,6 @@ export default function PriceList() {
                     <th className="px-4 py-3 text-xs font-semibold uppercase text-muted-foreground">Brand</th>
                     <th className="px-4 py-3 text-xs font-semibold uppercase text-muted-foreground text-right">Dealer ₹</th>
                     <th className="px-4 py-3 text-xs font-semibold uppercase text-muted-foreground text-right">Retailer ₹</th>
-                    <th className="px-4 py-3 text-xs font-semibold uppercase text-muted-foreground text-right">Walk-in ₹</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -234,7 +229,6 @@ export default function PriceList() {
                       <td className="px-4 py-3 text-sm text-muted-foreground">{row.product.brand?.name || "—"}</td>
                       <td className="px-4 py-3 text-sm text-right font-medium text-foreground">{row.dealer > 0 ? `₹${row.dealer}` : "—"}</td>
                       <td className="px-4 py-3 text-sm text-right font-medium text-foreground">{row.retailer > 0 ? `₹${row.retailer}` : "—"}</td>
-                      <td className="px-4 py-3 text-sm text-right font-medium text-foreground">{row.walkin > 0 ? `₹${row.walkin}` : "—"}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -285,9 +279,8 @@ export default function PriceList() {
                   <tr className="border-b border-border bg-muted/50 text-left">
                     <th className="px-4 py-2 text-xs font-semibold uppercase text-muted-foreground">Product</th>
                     <th className="px-4 py-2 text-xs font-semibold uppercase text-muted-foreground">Category</th>
-                    <th className="px-4 py-2 text-xs font-semibold uppercase text-muted-foreground">Dealer ₹</th>
-                    <th className="px-4 py-2 text-xs font-semibold uppercase text-muted-foreground">Retailer ₹</th>
-                    <th className="px-4 py-2 text-xs font-semibold uppercase text-muted-foreground">Walk-in ₹</th>
+                     <th className="px-4 py-2 text-xs font-semibold uppercase text-muted-foreground">Dealer ₹</th>
+                     <th className="px-4 py-2 text-xs font-semibold uppercase text-muted-foreground">Retailer ₹</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -309,14 +302,6 @@ export default function PriceList() {
                           className="h-8 w-24"
                           value={editPrices[p.id]?.retailer ?? "0"}
                           onChange={(e) => setEditPrices((prev) => ({ ...prev, [p.id]: { ...prev[p.id], retailer: e.target.value } }))}
-                        />
-                      </td>
-                      <td className="px-2 py-1">
-                        <Input
-                          type="number"
-                          className="h-8 w-24"
-                          value={editPrices[p.id]?.walkin ?? "0"}
-                          onChange={(e) => setEditPrices((prev) => ({ ...prev, [p.id]: { ...prev[p.id], walkin: e.target.value } }))}
                         />
                       </td>
                     </tr>
