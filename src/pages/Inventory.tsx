@@ -35,6 +35,9 @@ export default function Inventory() {
 
   const [addModal, setAddModal] = useState(false);
   const [newProduct, setNewProduct] = useState({ name: "", sku: "", brand_id: "", category: "Other", unit: "pcs", shop_id: "", quantity: "0", min_threshold: "10" });
+  const [editingItem, setEditingItem] = useState<string | null>(null);
+  const [editModal, setEditModal] = useState<{ open: boolean; item: any | null }>({ open: false, item: null });
+  const [editFields, setEditFields] = useState({ name: "", sku: "", brand_id: "", category: "Other" });
 
   // Fetch data
   const { data: inventory = [], isLoading } = useQuery({
