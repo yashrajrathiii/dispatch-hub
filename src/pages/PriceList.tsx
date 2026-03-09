@@ -220,7 +220,6 @@ export default function PriceList() {
                     <th className="px-4 py-3 text-xs font-semibold uppercase text-muted-foreground">Brand</th>
                     <th className="px-4 py-3 text-xs font-semibold uppercase text-muted-foreground text-right">Dealer ₹</th>
                     <th className="px-4 py-3 text-xs font-semibold uppercase text-muted-foreground text-right">Retailer ₹</th>
-                    <th className="px-4 py-3 text-xs font-semibold uppercase text-muted-foreground text-right">Walk-in ₹</th>
                   </tr>
                 </thead>
                 <tbody>
