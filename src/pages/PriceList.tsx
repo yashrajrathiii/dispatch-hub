@@ -110,10 +110,9 @@ export default function PriceList() {
     const prices: Record<string, { dealer: string; retailer: string; walkin: string }> = {};
     products.forEach((p) => {
       const row = priceRows.find((r) => r.product.id === p.id);
-      prices[p.id] = {
+    prices[p.id] = {
         dealer: String(row?.dealer ?? 0),
         retailer: String(row?.retailer ?? 0),
-        walkin: String(row?.walkin ?? 0),
       };
     });
     setEditPrices(prices);
