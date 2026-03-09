@@ -262,8 +262,38 @@ export default function PriceList() {
                     <tr key={row.product.id} className="border-b border-border last:border-0">
                       <td className="px-4 py-3 text-sm font-medium text-foreground">{row.product.name}</td>
                       <td className="px-4 py-3 text-sm text-muted-foreground">{row.product.brand?.name || "—"}</td>
-                      <td className="px-4 py-3 text-sm text-right font-medium text-foreground">{row.dealer > 0 ? `₹${row.dealer}` : "—"}</td>
-                      <td className="px-4 py-3 text-sm text-right font-medium text-foreground">{row.retailer > 0 ? `₹${row.retailer}` : "—"}</td>
+                      {editingRow === row.product.id ? (
+                        <>
+                          <td className="px-2 py-1 text-right">
+                            <Input type="number" className="h-8 w-24 ml-auto" value={inlineEdit.dealer} onChange={(e) => setInlineEdit(prev => ({ ...prev, dealer: e.target.value }))} />
+                          </td>
+                          <td className="px-2 py-1 text-right">
+                            <Input type="number" className="h-8 w-24 ml-auto" value={inlineEdit.retailer} onChange={(e) => setInlineEdit(prev => ({ ...prev, retailer: e.target.value }))} />
+                          </td>
+                          <td className="px-4 py-3 text-right">
+                            <div className="flex justify-end gap-1">
+                              <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => saveInlineEdit.mutate(row.product.id)} disabled={saveInlineEdit.isPending}>
+                                <Check className="h-4 w-4 text-primary" />
+                              </Button>
+                              <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => setEditingRow(null)}>
+                                <X className="h-4 w-4 text-muted-foreground" />
+                              </Button>
+                            </div>
+                          </td>
+                        </>
+                      ) : (
+                        <>
+                          <td className="px-4 py-3 text-sm text-right font-medium text-foreground">{row.dealer > 0 ? `₹${row.dealer}` : "—"}</td>
+                          <td className="px-4 py-3 text-sm text-right font-medium text-foreground">{row.retailer > 0 ? `₹${row.retailer}` : "—"}</td>
+                          {canEdit && (
+                            <td className="px-4 py-3 text-right">
+                              <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => startInlineEdit(row)}>
+                                <Pencil className="h-3.5 w-3.5 text-muted-foreground" />
+                              </Button>
+                            </td>
+                          )}
+                        </>
+                      )}
                     </tr>
                   ))}
                 </tbody>
