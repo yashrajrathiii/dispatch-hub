@@ -279,9 +279,8 @@ export default function PriceList() {
                   <tr className="border-b border-border bg-muted/50 text-left">
                     <th className="px-4 py-2 text-xs font-semibold uppercase text-muted-foreground">Product</th>
                     <th className="px-4 py-2 text-xs font-semibold uppercase text-muted-foreground">Category</th>
-                    <th className="px-4 py-2 text-xs font-semibold uppercase text-muted-foreground">Dealer ₹</th>
-                    <th className="px-4 py-2 text-xs font-semibold uppercase text-muted-foreground">Retailer ₹</th>
-                    <th className="px-4 py-2 text-xs font-semibold uppercase text-muted-foreground">Walk-in ₹</th>
+                     <th className="px-4 py-2 text-xs font-semibold uppercase text-muted-foreground">Dealer ₹</th>
+                     <th className="px-4 py-2 text-xs font-semibold uppercase text-muted-foreground">Retailer ₹</th>
                   </tr>
                 </thead>
                 <tbody>
