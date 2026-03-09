@@ -229,7 +229,6 @@ export default function PriceList() {
                       <td className="px-4 py-3 text-sm text-muted-foreground">{row.product.brand?.name || "—"}</td>
                       <td className="px-4 py-3 text-sm text-right font-medium text-foreground">{row.dealer > 0 ? `₹${row.dealer}` : "—"}</td>
                       <td className="px-4 py-3 text-sm text-right font-medium text-foreground">{row.retailer > 0 ? `₹${row.retailer}` : "—"}</td>
-                      <td className="px-4 py-3 text-sm text-right font-medium text-foreground">{row.walkin > 0 ? `₹${row.walkin}` : "—"}</td>
                     </tr>
                   ))}
                 </tbody>
