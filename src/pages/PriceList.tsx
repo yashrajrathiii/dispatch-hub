@@ -254,6 +254,7 @@ export default function PriceList() {
                     <th className="px-4 py-3 text-xs font-semibold uppercase text-muted-foreground">Brand</th>
                     <th className="px-4 py-3 text-xs font-semibold uppercase text-muted-foreground text-right">Dealer ₹</th>
                     <th className="px-4 py-3 text-xs font-semibold uppercase text-muted-foreground text-right">Retailer ₹</th>
+                    {canEdit && <th className="px-4 py-3 text-xs font-semibold uppercase text-muted-foreground text-right">Actions</th>}
                   </tr>
                 </thead>
                 <tbody>
