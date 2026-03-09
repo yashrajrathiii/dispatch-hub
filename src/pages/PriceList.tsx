@@ -177,6 +177,38 @@ export default function PriceList() {
 
   const canEdit = appUser?.role === "OWNER" || appUser?.role === "ADMIN";
 
+  const startInlineEdit = (row: PriceRow) => {
+    setEditingRow(row.product.id);
+    setInlineEdit({ dealer: String(row.dealer), retailer: String(row.retailer) });
+  };
+
+  const saveInlineEdit = useMutation({
+    mutationFn: async (productId: string) => {
+      if (!activePriceList) return;
+      const categories = ["DEALER", "RETAILER"] as const;
+      for (const cat of categories) {
+        const key = cat.toLowerCase() as "dealer" | "retailer";
+        const existing = activePrices.find((pp) => pp.product_id === productId && pp.buyer_category === cat);
+        if (existing) {
+          await supabase.from("product_prices").update({ price_per_unit: Number(inlineEdit[key]) || 0 }).eq("id", existing.id);
+        } else {
+          await supabase.from("product_prices").insert({
+            price_list_id: activePriceList.id,
+            product_id: productId,
+            buyer_category: cat,
+            price_per_unit: Number(inlineEdit[key]) || 0,
+          });
+        }
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["product-prices"] });
+      setEditingRow(null);
+      toast({ title: "Price updated" });
+    },
+    onError: (err: any) => toast({ title: "Error", description: err.message, variant: "destructive" }),
+  });
+
   return (
     <div className="space-y-6">
       {/* Header */}
