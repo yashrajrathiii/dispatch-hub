@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
-import { Package, AlertTriangle, XCircle, Plus } from "lucide-react";
+import { Package, AlertTriangle, XCircle, Plus, Pencil, Check, X } from "lucide-react";
 
 function getInventoryStatus(qty: number, threshold: number): Status {
   if (qty === 0) return "out_of_stock";
