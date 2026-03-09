@@ -107,7 +107,7 @@ export default function PriceList() {
 
   // Open create modal and pre-fill prices
   const handleOpenCreate = () => {
-    const prices: Record<string, { dealer: string; retailer: string; walkin: string }> = {};
+    const prices: Record<string, { dealer: string; retailer: string }> = {};
     products.forEach((p) => {
       const row = priceRows.find((r) => r.product.id === p.id);
     prices[p.id] = {
