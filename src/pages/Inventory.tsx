@@ -64,6 +64,8 @@ export default function Inventory() {
     },
   });
 
+  const godowns = shops.filter((s: any) => s.type === "GODOWN");
+
   // Mutations
   const adjustStock = useMutation({
     mutationFn: async () => {
@@ -330,38 +332,16 @@ export default function Inventory() {
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label>Category</Label>
-                <Select value={newProduct.category} onValueChange={(v) => setNewProduct(p => ({ ...p, category: v }))}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="Dhuli">Dhuli</SelectItem>
-                    <SelectItem value="Dryfruits">Dryfruits</SelectItem>
-                    <SelectItem value="Oil">Oil</SelectItem>
-                    <SelectItem value="Other">Other</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-            <div className="grid grid-cols-3 gap-4">
-              <div className="space-y-2">
-                <Label>Unit</Label>
-                <Input value={newProduct.unit} onChange={(e) => setNewProduct(p => ({ ...p, unit: e.target.value }))} />
-              </div>
-              <div className="space-y-2">
-                <Label>Initial Qty</Label>
+                <Label>Quantity</Label>
                 <Input type="number" value={newProduct.quantity} onChange={(e) => setNewProduct(p => ({ ...p, quantity: e.target.value }))} />
-              </div>
-              <div className="space-y-2">
-                <Label>Min Threshold</Label>
-                <Input type="number" value={newProduct.min_threshold} onChange={(e) => setNewProduct(p => ({ ...p, min_threshold: e.target.value }))} />
               </div>
             </div>
             <div className="space-y-2">
-              <Label>Assign to Shop</Label>
+              <Label>Godown</Label>
               <Select value={newProduct.shop_id} onValueChange={(v) => setNewProduct(p => ({ ...p, shop_id: v }))}>
-                <SelectTrigger><SelectValue placeholder="Select shop" /></SelectTrigger>
+                <SelectTrigger><SelectValue placeholder="Select godown" /></SelectTrigger>
                 <SelectContent>
-                  {shops.map((s: any) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
+                  {godowns.map((s: any) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>

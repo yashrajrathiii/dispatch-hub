@@ -11,7 +11,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Calendar } from "@/components/ui/calendar";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
-import { CalendarIcon, Plus, History } from "lucide-react";
+import { CalendarIcon, Plus, History, Pencil, Check, X } from "lucide-react";
 import type { Tables } from "@/integrations/supabase/types";
 
 type Product = Tables<"products"> & { brand: Tables<"brands"> | null };
@@ -33,6 +33,8 @@ export default function PriceList() {
   const [newName, setNewName] = useState("");
   const [effectiveDate, setEffectiveDate] = useState<Date>(new Date());
   const [editPrices, setEditPrices] = useState<Record<string, { dealer: string; retailer: string }>>({});
+  const [editingRow, setEditingRow] = useState<string | null>(null);
+  const [inlineEdit, setInlineEdit] = useState<{ dealer: string; retailer: string }>({ dealer: "0", retailer: "0" });
 
   // Fetch active price list
   const { data: activePriceList } = useQuery({
@@ -175,6 +177,38 @@ export default function PriceList() {
 
   const canEdit = appUser?.role === "OWNER" || appUser?.role === "ADMIN";
 
+  const startInlineEdit = (row: PriceRow) => {
+    setEditingRow(row.product.id);
+    setInlineEdit({ dealer: String(row.dealer), retailer: String(row.retailer) });
+  };
+
+  const saveInlineEdit = useMutation({
+    mutationFn: async (productId: string) => {
+      if (!activePriceList) return;
+      const categories = ["DEALER", "RETAILER"] as const;
+      for (const cat of categories) {
+        const key = cat.toLowerCase() as "dealer" | "retailer";
+        const existing = activePrices.find((pp) => pp.product_id === productId && pp.buyer_category === cat);
+        if (existing) {
+          await supabase.from("product_prices").update({ price_per_unit: Number(inlineEdit[key]) || 0 }).eq("id", existing.id);
+        } else {
+          await supabase.from("product_prices").insert({
+            price_list_id: activePriceList.id,
+            product_id: productId,
+            buyer_category: cat,
+            price_per_unit: Number(inlineEdit[key]) || 0,
+          });
+        }
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["product-prices"] });
+      setEditingRow(null);
+      toast({ title: "Price updated" });
+    },
+    onError: (err: any) => toast({ title: "Error", description: err.message, variant: "destructive" }),
+  });
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -220,6 +254,7 @@ export default function PriceList() {
                     <th className="px-4 py-3 text-xs font-semibold uppercase text-muted-foreground">Brand</th>
                     <th className="px-4 py-3 text-xs font-semibold uppercase text-muted-foreground text-right">Dealer ₹</th>
                     <th className="px-4 py-3 text-xs font-semibold uppercase text-muted-foreground text-right">Retailer ₹</th>
+                    {canEdit && <th className="px-4 py-3 text-xs font-semibold uppercase text-muted-foreground text-right">Actions</th>}
                   </tr>
                 </thead>
                 <tbody>
@@ -227,8 +262,38 @@ export default function PriceList() {
                     <tr key={row.product.id} className="border-b border-border last:border-0">
                       <td className="px-4 py-3 text-sm font-medium text-foreground">{row.product.name}</td>
                       <td className="px-4 py-3 text-sm text-muted-foreground">{row.product.brand?.name || "—"}</td>
-                      <td className="px-4 py-3 text-sm text-right font-medium text-foreground">{row.dealer > 0 ? `₹${row.dealer}` : "—"}</td>
-                      <td className="px-4 py-3 text-sm text-right font-medium text-foreground">{row.retailer > 0 ? `₹${row.retailer}` : "—"}</td>
+                      {editingRow === row.product.id ? (
+                        <>
+                          <td className="px-2 py-1 text-right">
+                            <Input type="number" className="h-8 w-24 ml-auto" value={inlineEdit.dealer} onChange={(e) => setInlineEdit(prev => ({ ...prev, dealer: e.target.value }))} />
+                          </td>
+                          <td className="px-2 py-1 text-right">
+                            <Input type="number" className="h-8 w-24 ml-auto" value={inlineEdit.retailer} onChange={(e) => setInlineEdit(prev => ({ ...prev, retailer: e.target.value }))} />
+                          </td>
+                          <td className="px-4 py-3 text-right">
+                            <div className="flex justify-end gap-1">
+                              <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => saveInlineEdit.mutate(row.product.id)} disabled={saveInlineEdit.isPending}>
+                                <Check className="h-4 w-4 text-primary" />
+                              </Button>
+                              <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => setEditingRow(null)}>
+                                <X className="h-4 w-4 text-muted-foreground" />
+                              </Button>
+                            </div>
+                          </td>
+                        </>
+                      ) : (
+                        <>
+                          <td className="px-4 py-3 text-sm text-right font-medium text-foreground">{row.dealer > 0 ? `₹${row.dealer}` : "—"}</td>
+                          <td className="px-4 py-3 text-sm text-right font-medium text-foreground">{row.retailer > 0 ? `₹${row.retailer}` : "—"}</td>
+                          {canEdit && (
+                            <td className="px-4 py-3 text-right">
+                              <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => startInlineEdit(row)}>
+                                <Pencil className="h-3.5 w-3.5 text-muted-foreground" />
+                              </Button>
+                            </td>
+                          )}
+                        </>
+                      )}
                     </tr>
                   ))}
                 </tbody>
