@@ -291,9 +291,16 @@ export default function Inventory() {
                       {new Date(item.last_updated_at).toLocaleDateString()}
                     </td>
                     <td className="px-4 py-3">
-                      <Button size="sm" variant="outline" onClick={() => setAdjustModal({ open: true, item })}>
-                        Adjust Stock
-                      </Button>
+                      <div className="flex gap-1">
+                        <Button size="sm" variant="outline" onClick={() => setAdjustModal({ open: true, item })}>
+                          Adjust Stock
+                        </Button>
+                        {canAdd && (
+                          <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => openEditModal(item)}>
+                            <Pencil className="h-3.5 w-3.5 text-muted-foreground" />
+                          </Button>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 );
