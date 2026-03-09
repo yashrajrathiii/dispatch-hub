@@ -91,12 +91,10 @@ export default function PriceList() {
   const priceRows: PriceRow[] = products.map((p) => {
     const dealer = activePrices.find((pp) => pp.product_id === p.id && pp.buyer_category === "DEALER");
     const retailer = activePrices.find((pp) => pp.product_id === p.id && pp.buyer_category === "RETAILER");
-    const walkin = activePrices.find((pp) => pp.product_id === p.id && pp.buyer_category === "WALKIN");
     return {
       product: p,
       dealer: dealer ? Number(dealer.price_per_unit) : 0,
       retailer: retailer ? Number(retailer.price_per_unit) : 0,
-      walkin: walkin ? Number(walkin.price_per_unit) : 0,
     };
   });
 
