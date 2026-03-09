@@ -69,6 +69,37 @@ export default function Inventory() {
 
   const godowns = shops.filter((s: any) => s.type === "GODOWN");
 
+  // Edit product mutation
+  const editProduct = useMutation({
+    mutationFn: async () => {
+      const item = editModal.item;
+      if (!item) return;
+      const { error } = await supabase.from("products").update({
+        name: editFields.name,
+        sku: editFields.sku,
+        brand_id: editFields.brand_id || null,
+        category: editFields.category as any,
+      }).eq("id", item.product_id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["inventory"] });
+      setEditModal({ open: false, item: null });
+      toast({ title: "Product updated" });
+    },
+    onError: (err: any) => toast({ title: "Error", description: err.message, variant: "destructive" }),
+  });
+
+  const openEditModal = (item: any) => {
+    setEditFields({
+      name: item.product?.name || "",
+      sku: item.product?.sku || "",
+      brand_id: item.product?.brand_id || "",
+      category: item.product?.category || "Other",
+    });
+    setEditModal({ open: true, item });
+  };
+
   // Mutations
   const adjustStock = useMutation({
     mutationFn: async () => {
