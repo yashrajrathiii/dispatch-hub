@@ -395,6 +395,52 @@ export default function Inventory() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Edit Product Modal */}
+      <Dialog open={editModal.open} onOpenChange={(open) => !open && setEditModal({ open: false, item: null })}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Edit Product</DialogTitle>
+          </DialogHeader>
+          <div className="grid gap-4 py-2">
+            <div className="space-y-2">
+              <Label>Product Name</Label>
+              <Input value={editFields.name} onChange={(e) => setEditFields(p => ({ ...p, name: e.target.value }))} />
+            </div>
+            <div className="space-y-2">
+              <Label>SKU</Label>
+              <Input value={editFields.sku} onChange={(e) => setEditFields(p => ({ ...p, sku: e.target.value }))} />
+            </div>
+            <div className="space-y-2">
+              <Label>Brand</Label>
+              <Select value={editFields.brand_id} onValueChange={(v) => setEditFields(p => ({ ...p, brand_id: v }))}>
+                <SelectTrigger><SelectValue placeholder="Select brand" /></SelectTrigger>
+                <SelectContent>
+                  {brands.map((b: any) => <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Category</Label>
+              <Select value={editFields.category} onValueChange={(v) => setEditFields(p => ({ ...p, category: v }))}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Dhuli">Dhuli</SelectItem>
+                  <SelectItem value="Dryfruits">Dryfruits</SelectItem>
+                  <SelectItem value="Oil">Oil</SelectItem>
+                  <SelectItem value="Other">Other</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditModal({ open: false, item: null })}>Cancel</Button>
+            <Button onClick={() => editProduct.mutate()} disabled={!editFields.name || !editFields.sku || editProduct.isPending}>
+              {editProduct.isPending ? "Saving..." : "Save Changes"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
