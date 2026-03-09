@@ -64,6 +64,8 @@ export default function Inventory() {
     },
   });
 
+  const godowns = shops.filter((s: any) => s.type === "GODOWN");
+
   // Mutations
   const adjustStock = useMutation({
     mutationFn: async () => {
