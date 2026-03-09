@@ -145,12 +145,12 @@ export default function PriceList() {
       const rows: Array<{
         price_list_id: string;
         product_id: string;
-        buyer_category: "DEALER" | "RETAILER" | "WALKIN";
+        buyer_category: "DEALER" | "RETAILER";
         price_per_unit: number;
       }> = [];
       for (const [productId, vals] of Object.entries(editPrices)) {
-        (["DEALER", "RETAILER", "WALKIN"] as const).forEach((cat) => {
-          const key = cat.toLowerCase() as "dealer" | "retailer" | "walkin";
+        (["DEALER", "RETAILER"] as const).forEach((cat) => {
+          const key = cat.toLowerCase() as "dealer" | "retailer";
           rows.push({
             price_list_id: newList.id,
             product_id: productId,
