@@ -304,14 +304,6 @@ export default function PriceList() {
                           onChange={(e) => setEditPrices((prev) => ({ ...prev, [p.id]: { ...prev[p.id], retailer: e.target.value } }))}
                         />
                       </td>
-                      <td className="px-2 py-1">
-                        <Input
-                          type="number"
-                          className="h-8 w-24"
-                          value={editPrices[p.id]?.walkin ?? "0"}
-                          onChange={(e) => setEditPrices((prev) => ({ ...prev, [p.id]: { ...prev[p.id], walkin: e.target.value } }))}
-                        />
-                      </td>
                     </tr>
                   ))}
                 </tbody>
