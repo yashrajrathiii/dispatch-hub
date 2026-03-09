@@ -35,6 +35,7 @@ export default function Inventory() {
 
   const [addModal, setAddModal] = useState(false);
   const [newProduct, setNewProduct] = useState({ name: "", sku: "", brand_id: "", category: "Other", unit: "pcs", shop_id: "", quantity: "0", min_threshold: "10" });
+  const godowns = shops.filter((s: any) => s.type === "GODOWN");
 
   // Fetch data
   const { data: inventory = [], isLoading } = useQuery({
