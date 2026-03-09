@@ -11,7 +11,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Calendar } from "@/components/ui/calendar";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
-import { CalendarIcon, Plus, History } from "lucide-react";
+import { CalendarIcon, Plus, History, Pencil, Check, X } from "lucide-react";
 import type { Tables } from "@/integrations/supabase/types";
 
 type Product = Tables<"products"> & { brand: Tables<"brands"> | null };
