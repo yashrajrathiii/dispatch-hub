@@ -22,7 +22,6 @@ interface PriceRow {
   product: Product;
   dealer: number;
   retailer: number;
-  walkin: number;
 }
 
 export default function PriceList() {
