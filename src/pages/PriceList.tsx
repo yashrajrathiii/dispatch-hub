@@ -32,7 +32,7 @@ export default function PriceList() {
   const [historyOpen, setHistoryOpen] = useState(false);
   const [newName, setNewName] = useState("");
   const [effectiveDate, setEffectiveDate] = useState<Date>(new Date());
-  const [editPrices, setEditPrices] = useState<Record<string, { dealer: string; retailer: string; walkin: string }>>({});
+  const [editPrices, setEditPrices] = useState<Record<string, { dealer: string; retailer: string }>>({});
 
   // Fetch active price list
   const { data: activePriceList } = useQuery({
