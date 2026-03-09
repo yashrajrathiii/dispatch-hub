@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
-import { Package, AlertTriangle, XCircle, Plus } from "lucide-react";
+import { Package, AlertTriangle, XCircle, Plus, Pencil, Check, X } from "lucide-react";
 
 function getInventoryStatus(qty: number, threshold: number): Status {
   if (qty === 0) return "out_of_stock";
@@ -35,6 +35,9 @@ export default function Inventory() {
 
   const [addModal, setAddModal] = useState(false);
   const [newProduct, setNewProduct] = useState({ name: "", sku: "", brand_id: "", category: "Other", unit: "pcs", shop_id: "", quantity: "0", min_threshold: "10" });
+  const [editingItem, setEditingItem] = useState<string | null>(null);
+  const [editModal, setEditModal] = useState<{ open: boolean; item: any | null }>({ open: false, item: null });
+  const [editFields, setEditFields] = useState({ name: "", sku: "", brand_id: "", category: "Other" });
 
   // Fetch data
   const { data: inventory = [], isLoading } = useQuery({
@@ -65,6 +68,37 @@ export default function Inventory() {
   });
 
   const godowns = shops.filter((s: any) => s.type === "GODOWN");
+
+  // Edit product mutation
+  const editProduct = useMutation({
+    mutationFn: async () => {
+      const item = editModal.item;
+      if (!item) return;
+      const { error } = await supabase.from("products").update({
+        name: editFields.name,
+        sku: editFields.sku,
+        brand_id: editFields.brand_id || null,
+        category: editFields.category as any,
+      }).eq("id", item.product_id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["inventory"] });
+      setEditModal({ open: false, item: null });
+      toast({ title: "Product updated" });
+    },
+    onError: (err: any) => toast({ title: "Error", description: err.message, variant: "destructive" }),
+  });
+
+  const openEditModal = (item: any) => {
+    setEditFields({
+      name: item.product?.name || "",
+      sku: item.product?.sku || "",
+      brand_id: item.product?.brand_id || "",
+      category: item.product?.category || "Other",
+    });
+    setEditModal({ open: true, item });
+  };
 
   // Mutations
   const adjustStock = useMutation({
@@ -257,9 +291,16 @@ export default function Inventory() {
                       {new Date(item.last_updated_at).toLocaleDateString()}
                     </td>
                     <td className="px-4 py-3">
-                      <Button size="sm" variant="outline" onClick={() => setAdjustModal({ open: true, item })}>
-                        Adjust Stock
-                      </Button>
+                      <div className="flex gap-1">
+                        <Button size="sm" variant="outline" onClick={() => setAdjustModal({ open: true, item })}>
+                          Adjust Stock
+                        </Button>
+                        {canAdd && (
+                          <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => openEditModal(item)}>
+                            <Pencil className="h-3.5 w-3.5 text-muted-foreground" />
+                          </Button>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 );
@@ -350,6 +391,52 @@ export default function Inventory() {
             <Button variant="outline" onClick={() => setAddModal(false)}>Cancel</Button>
             <Button onClick={() => addProduct.mutate()} disabled={!newProduct.name || !newProduct.sku || addProduct.isPending}>
               {addProduct.isPending ? "Adding..." : "Add Product"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Product Modal */}
+      <Dialog open={editModal.open} onOpenChange={(open) => !open && setEditModal({ open: false, item: null })}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Edit Product</DialogTitle>
+          </DialogHeader>
+          <div className="grid gap-4 py-2">
+            <div className="space-y-2">
+              <Label>Product Name</Label>
+              <Input value={editFields.name} onChange={(e) => setEditFields(p => ({ ...p, name: e.target.value }))} />
+            </div>
+            <div className="space-y-2">
+              <Label>SKU</Label>
+              <Input value={editFields.sku} onChange={(e) => setEditFields(p => ({ ...p, sku: e.target.value }))} />
+            </div>
+            <div className="space-y-2">
+              <Label>Brand</Label>
+              <Select value={editFields.brand_id} onValueChange={(v) => setEditFields(p => ({ ...p, brand_id: v }))}>
+                <SelectTrigger><SelectValue placeholder="Select brand" /></SelectTrigger>
+                <SelectContent>
+                  {brands.map((b: any) => <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Category</Label>
+              <Select value={editFields.category} onValueChange={(v) => setEditFields(p => ({ ...p, category: v }))}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Dhuli">Dhuli</SelectItem>
+                  <SelectItem value="Dryfruits">Dryfruits</SelectItem>
+                  <SelectItem value="Oil">Oil</SelectItem>
+                  <SelectItem value="Other">Other</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditModal({ open: false, item: null })}>Cancel</Button>
+            <Button onClick={() => editProduct.mutate()} disabled={!editFields.name || !editFields.sku || editProduct.isPending}>
+              {editProduct.isPending ? "Saving..." : "Save Changes"}
             </Button>
           </DialogFooter>
         </DialogContent>
