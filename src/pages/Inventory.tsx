@@ -8,8 +8,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
-import { Package, AlertTriangle, XCircle, Plus, Pencil, Check, X } from "lucide-react";
+import { Package, AlertTriangle, XCircle, Plus, Pencil, Trash2 } from "lucide-react";
 
 function getInventoryStatus(qty: number, threshold: number): Status {
   if (qty === 0) return "out_of_stock";
@@ -38,6 +39,7 @@ export default function Inventory() {
   const [editingItem, setEditingItem] = useState<string | null>(null);
   const [editModal, setEditModal] = useState<{ open: boolean; item: any | null }>({ open: false, item: null });
   const [editFields, setEditFields] = useState({ name: "", sku: "", brand_id: "", category: "Other" });
+  const [deleteConfirm, setDeleteConfirm] = useState<{ open: boolean; item: any | null }>({ open: false, item: null });
 
   // Fetch data
   const { data: inventory = [], isLoading } = useQuery({
@@ -86,6 +88,22 @@ export default function Inventory() {
       queryClient.invalidateQueries({ queryKey: ["inventory"] });
       setEditModal({ open: false, item: null });
       toast({ title: "Product updated" });
+    },
+    onError: (err: any) => toast({ title: "Error", description: err.message, variant: "destructive" }),
+  });
+
+  const deleteInventory = useMutation({
+    mutationFn: async (item: any) => {
+      const { error: invErr } = await supabase.from("inventory").delete().eq("id", item.id);
+      if (invErr) throw invErr;
+      // Also deactivate the product
+      const { error: prodErr } = await supabase.from("products").update({ is_active: false }).eq("id", item.product_id);
+      if (prodErr) throw prodErr;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["inventory"] });
+      setDeleteConfirm({ open: false, item: null });
+      toast({ title: "Inventory item deleted" });
     },
     onError: (err: any) => toast({ title: "Error", description: err.message, variant: "destructive" }),
   });
@@ -296,9 +314,14 @@ export default function Inventory() {
                           Adjust Stock
                         </Button>
                         {canAdd && (
-                          <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => openEditModal(item)}>
-                            <Pencil className="h-3.5 w-3.5 text-muted-foreground" />
-                          </Button>
+                          <>
+                            <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => openEditModal(item)}>
+                              <Pencil className="h-3.5 w-3.5 text-muted-foreground" />
+                            </Button>
+                            <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => setDeleteConfirm({ open: true, item })}>
+                              <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                            </Button>
+                          </>
                         )}
                       </div>
                     </td>
@@ -441,6 +464,27 @@ export default function Inventory() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Delete Confirmation */}
+      <AlertDialog open={deleteConfirm.open} onOpenChange={(open) => !open && setDeleteConfirm({ open: false, item: null })}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Inventory Item</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete <strong>{deleteConfirm.item?.product?.name}</strong> from inventory? This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => deleteConfirm.item && deleteInventory.mutate(deleteConfirm.item)}
+            >
+              {deleteInventory.isPending ? "Deleting..." : "Delete"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
