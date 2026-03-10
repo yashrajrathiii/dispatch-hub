@@ -1,8 +1,9 @@
-import { Bell, LogOut } from "lucide-react";
+import { LogOut } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { useNavigate } from "react-router-dom";
+import NotificationBell from "@/components/NotificationBell";
 
 interface Props {
   title: string;
@@ -26,12 +27,7 @@ export default function TopBar({ title }: Props) {
       <h1 className="text-xl font-semibold text-foreground">{title}</h1>
 
       <div className="flex items-center gap-4">
-        <button className="relative rounded-md p-2 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground">
-          <Bell className="h-5 w-5" />
-          <span className="absolute -right-0.5 -top-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-destructive text-[10px] font-bold text-destructive-foreground">
-            3
-          </span>
-        </button>
+        <NotificationBell />
 
         <div className="flex items-center gap-3">
           <Avatar className="h-8 w-8">
