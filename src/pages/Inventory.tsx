@@ -314,9 +314,14 @@ export default function Inventory() {
                           Adjust Stock
                         </Button>
                         {canAdd && (
-                          <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => openEditModal(item)}>
-                            <Pencil className="h-3.5 w-3.5 text-muted-foreground" />
-                          </Button>
+                          <>
+                            <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => openEditModal(item)}>
+                              <Pencil className="h-3.5 w-3.5 text-muted-foreground" />
+                            </Button>
+                            <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => setDeleteConfirm({ open: true, item })}>
+                              <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                            </Button>
+                          </>
                         )}
                       </div>
                     </td>
