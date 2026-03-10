@@ -310,21 +310,29 @@ export default function Inventory() {
                       {new Date(item.last_updated_at).toLocaleDateString()}
                     </td>
                     <td className="px-4 py-3">
-                      <div className="flex gap-1">
-                        <Button size="sm" variant="outline" onClick={() => setAdjustModal({ open: true, item })}>
-                          Adjust Stock
-                        </Button>
-                        {canAdd && (
-                          <>
-                            <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => openEditModal(item)}>
-                              <Pencil className="h-3.5 w-3.5 text-muted-foreground" />
-                            </Button>
-                            <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => setDeleteConfirm({ open: true, item })}>
-                              <Trash2 className="h-3.5 w-3.5 text-destructive" />
-                            </Button>
-                          </>
-                        )}
-                      </div>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button size="icon" variant="ghost" className="h-8 w-8">
+                            <MoreHorizontal className="h-4 w-4 text-muted-foreground" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem onClick={() => setAdjustModal({ open: true, item })}>
+                            <ArrowUpDown className="mr-2 h-4 w-4" /> Adjust Stock
+                          </DropdownMenuItem>
+                          {canAdd && (
+                            <>
+                              <DropdownMenuItem onClick={() => openEditModal(item)}>
+                                <Pencil className="mr-2 h-4 w-4" /> Edit Product
+                              </DropdownMenuItem>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem className="text-destructive focus:text-destructive" onClick={() => setDeleteConfirm({ open: true, item })}>
+                                <Trash2 className="mr-2 h-4 w-4" /> Delete
+                              </DropdownMenuItem>
+                            </>
+                          )}
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                     </td>
                   </tr>
                 );
