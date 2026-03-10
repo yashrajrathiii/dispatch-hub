@@ -92,6 +92,22 @@ export default function Inventory() {
     onError: (err: any) => toast({ title: "Error", description: err.message, variant: "destructive" }),
   });
 
+  const deleteInventory = useMutation({
+    mutationFn: async (item: any) => {
+      const { error: invErr } = await supabase.from("inventory").delete().eq("id", item.id);
+      if (invErr) throw invErr;
+      // Also deactivate the product
+      const { error: prodErr } = await supabase.from("products").update({ is_active: false }).eq("id", item.product_id);
+      if (prodErr) throw prodErr;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["inventory"] });
+      setDeleteConfirm({ open: false, item: null });
+      toast({ title: "Inventory item deleted" });
+    },
+    onError: (err: any) => toast({ title: "Error", description: err.message, variant: "destructive" }),
+  });
+
   const openEditModal = (item: any) => {
     setEditFields({
       name: item.product?.name || "",
