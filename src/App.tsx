@@ -13,6 +13,9 @@ import Inventory from "@/pages/Inventory";
 import PriceList from "@/pages/PriceList";
 import Orders from "@/pages/Orders";
 import OrderDetail from "@/pages/OrderDetail";
+import WalkinPurchase from "@/pages/WalkinPurchase";
+import Billing from "@/pages/Billing";
+import BillingDetail from "@/pages/BillingDetail";
 import PlaceholderPage from "@/pages/PlaceholderPage";
 import SettingsShops from "@/pages/SettingsShops";
 import SettingsBrands from "@/pages/SettingsBrands";
@@ -49,7 +52,12 @@ const App = () => (
             </Route>
 
             <Route element={<ProtectedRoute allowedRoles={["OWNER", "ADMIN", "STAFF"]}><AppLayout title="Walk-in Purchase" /></ProtectedRoute>}>
-              <Route path="/walk-in" element={<PlaceholderPage title="Walk-in Purchase" />} />
+              <Route path="/walk-in" element={<WalkinPurchase />} />
+            </Route>
+
+            <Route element={<ProtectedRoute allowedRoles={["OWNER", "ADMIN", "ACCOUNTANT"]}><AppLayout title="Billing" /></ProtectedRoute>}>
+              <Route path="/billing" element={<Billing />} />
+              <Route path="/billing/:id" element={<BillingDetail />} />
             </Route>
 
             <Route element={<ProtectedRoute allowedRoles={["OWNER", "ADMIN", "STAFF", "DRIVER"]}><AppLayout title="Dispatch" /></ProtectedRoute>}>

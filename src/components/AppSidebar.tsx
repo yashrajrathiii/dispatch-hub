@@ -9,6 +9,7 @@ import {
   Settings,
   Building2,
   Tag,
+  Receipt,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useAuth, AppRole } from "@/contexts/AuthContext";
@@ -27,6 +28,7 @@ const allItems: NavItem[] = [
   { title: "Price List", url: "/price-list", icon: DollarSign, roles: ["OWNER", "ADMIN"] },
   { title: "Orders", url: "/orders", icon: ShoppingCart, roles: ["OWNER", "ADMIN", "STAFF"] },
   { title: "Walk-in Purchase", url: "/walk-in", icon: Store, roles: ["OWNER", "ADMIN", "STAFF"] },
+  { title: "Billing", url: "/billing", icon: Receipt, roles: ["OWNER", "ADMIN", "ACCOUNTANT"] },
   { title: "Dispatch", url: "/dispatch", icon: Truck, roles: ["OWNER", "ADMIN", "STAFF", "DRIVER"] },
   { title: "Buyers", url: "/buyers", icon: Users, roles: ["OWNER", "ADMIN", "STAFF"] },
   {
