@@ -151,8 +151,11 @@ export default function Inventory() {
   const addProduct = useMutation({
     mutationFn: async () => {
       if (!appUser) return;
+      // Generate SKU from product name + timestamp
+      const sku = `${newProduct.name.substring(0, 3).toUpperCase()}-${Date.now().toString().slice(-6)}`;
       const { data: prod, error: prodErr } = await supabase.from("products").insert({
         name: newProduct.name,
+        sku: sku,
         brand_id: newProduct.brand_id || null,
         unit: newProduct.unit,
       }).select().single();
