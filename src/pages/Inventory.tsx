@@ -277,9 +277,7 @@ export default function Inventory() {
                 return (
                   <tr key={item.id} className="border-b border-border last:border-0">
                     <td className="px-4 py-3 text-sm font-medium text-foreground">{item.product?.name}</td>
-                    <td className="px-4 py-3 text-sm text-muted-foreground">{item.product?.sku}</td>
                     <td className="px-4 py-3 text-sm text-muted-foreground">{item.product?.brand?.name || "—"}</td>
-                    <td className="px-4 py-3 text-sm text-muted-foreground">{item.product?.category}</td>
                     <td className="px-4 py-3 text-sm text-muted-foreground">{item.shop?.name}</td>
                     <td className={`px-4 py-3 text-sm font-medium ${status === "low_stock" || status === "out_of_stock" ? "text-destructive" : "text-foreground"}`}>
                       {qty}
