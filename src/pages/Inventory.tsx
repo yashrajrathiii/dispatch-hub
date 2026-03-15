@@ -412,10 +412,6 @@ export default function Inventory() {
               <Input value={editFields.name} onChange={(e) => setEditFields(p => ({ ...p, name: e.target.value }))} />
             </div>
             <div className="space-y-2">
-              <Label>SKU</Label>
-              <Input value={editFields.sku} onChange={(e) => setEditFields(p => ({ ...p, sku: e.target.value }))} />
-            </div>
-            <div className="space-y-2">
               <Label>Brand</Label>
               <Select value={editFields.brand_id} onValueChange={(v) => setEditFields(p => ({ ...p, brand_id: v }))}>
                 <SelectTrigger><SelectValue placeholder="Select brand" /></SelectTrigger>
@@ -424,22 +420,10 @@ export default function Inventory() {
                 </SelectContent>
               </Select>
             </div>
-            <div className="space-y-2">
-              <Label>Category</Label>
-              <Select value={editFields.category} onValueChange={(v) => setEditFields(p => ({ ...p, category: v }))}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="Dhuli">Dhuli</SelectItem>
-                  <SelectItem value="Dryfruits">Dryfruits</SelectItem>
-                  <SelectItem value="Oil">Oil</SelectItem>
-                  <SelectItem value="Other">Other</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setEditModal({ open: false, item: null })}>Cancel</Button>
-            <Button onClick={() => editProduct.mutate()} disabled={!editFields.name || !editFields.sku || editProduct.isPending}>
+            <Button onClick={() => editProduct.mutate()} disabled={!editFields.name || editProduct.isPending}>
               {editProduct.isPending ? "Saving..." : "Save Changes"}
             </Button>
           </DialogFooter>
