@@ -38,7 +38,7 @@ export default function Inventory() {
   const [newProduct, setNewProduct] = useState({ name: "", brand_id: "", unit: "pcs", shop_id: "", quantity: "0", min_threshold: "10" });
   const [editingItem, setEditingItem] = useState<string | null>(null);
   const [editModal, setEditModal] = useState<{ open: boolean; item: any | null }>({ open: false, item: null });
-  const [editFields, setEditFields] = useState({ name: "", sku: "", brand_id: "", category: "Other" });
+  const [editFields, setEditFields] = useState({ name: "", brand_id: "" });
   const [deleteConfirm, setDeleteConfirm] = useState<{ open: boolean; item: any | null }>({ open: false, item: null });
 
   // Fetch data
