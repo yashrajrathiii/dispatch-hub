@@ -109,9 +109,7 @@ export default function Inventory() {
   const openEditModal = (item: any) => {
     setEditFields({
       name: item.product?.name || "",
-      sku: item.product?.sku || "",
       brand_id: item.product?.brand_id || "",
-      category: item.product?.category || "Other",
     });
     setEditModal({ open: true, item });
   };
