@@ -260,9 +260,7 @@ export default function Inventory() {
             <thead>
               <tr className="border-b border-border text-left">
                 <th className="px-4 py-3 text-xs font-semibold uppercase text-muted-foreground">Product</th>
-                <th className="px-4 py-3 text-xs font-semibold uppercase text-muted-foreground">SKU</th>
                 <th className="px-4 py-3 text-xs font-semibold uppercase text-muted-foreground">Brand</th>
-                <th className="px-4 py-3 text-xs font-semibold uppercase text-muted-foreground">Category</th>
                 <th className="px-4 py-3 text-xs font-semibold uppercase text-muted-foreground">Shop</th>
                 <th className="px-4 py-3 text-xs font-semibold uppercase text-muted-foreground">Qty</th>
                 <th className="px-4 py-3 text-xs font-semibold uppercase text-muted-foreground">Min Threshold</th>
