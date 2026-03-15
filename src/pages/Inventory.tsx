@@ -182,10 +182,9 @@ export default function Inventory() {
   const filtered = inventory.filter((item: any) => {
     if (shopFilter !== "all" && item.shop_id !== shopFilter) return false;
     if (brandFilter !== "all" && item.product?.brand_id !== brandFilter) return false;
-    if (categoryFilter !== "all" && item.product?.category !== categoryFilter) return false;
     if (search) {
       const s = search.toLowerCase();
-      if (!item.product?.name?.toLowerCase().includes(s) && !item.product?.sku?.toLowerCase().includes(s)) return false;
+      if (!item.product?.name?.toLowerCase().includes(s)) return false;
     }
     return true;
   });
