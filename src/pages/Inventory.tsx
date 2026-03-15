@@ -76,8 +76,11 @@ export default function Inventory() {
     mutationFn: async () => {
       const item = editModal.item;
       if (!item) return;
+      // Auto-generate SKU if missing (using name + id)
+      const sku = `${editFields.name.substring(0, 3).toUpperCase()}-${item.product_id.slice(-6)}`;
       const { error } = await supabase.from("products").update({
         name: editFields.name,
+        sku: sku,
         brand_id: editFields.brand_id || null,
       }).eq("id", item.product_id);
       if (error) throw error;

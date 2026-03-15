@@ -248,15 +248,14 @@ export default function PriceList() {
       ) : (
         <div className="space-y-6">
           {grouped.map((group) => (
-            <div key={group.category} className="rounded-lg border border-border bg-card shadow-sm overflow-hidden">
+            <div key={group.brand} className="rounded-lg border border-border bg-card shadow-sm overflow-hidden">
               <div className="border-b border-border bg-muted/50 px-4 py-2">
-                <h3 className="text-sm font-semibold text-foreground">{group.category}</h3>
+                <h3 className="text-sm font-semibold text-foreground">{group.brand}</h3>
               </div>
               <table className="w-full">
                 <thead>
                   <tr className="border-b border-border text-left">
                     <th className="px-4 py-3 text-xs font-semibold uppercase text-muted-foreground">Product</th>
-                    <th className="px-4 py-3 text-xs font-semibold uppercase text-muted-foreground">Brand</th>
                     <th className="px-4 py-3 text-xs font-semibold uppercase text-muted-foreground text-right">Dealer ₹</th>
                     <th className="px-4 py-3 text-xs font-semibold uppercase text-muted-foreground text-right">Retailer ₹</th>
                     {canEdit && <th className="px-4 py-3 text-xs font-semibold uppercase text-muted-foreground text-right">Actions</th>}
@@ -266,7 +265,6 @@ export default function PriceList() {
                   {group.rows.map((row) => (
                     <tr key={row.product.id} className="border-b border-border last:border-0">
                       <td className="px-4 py-3 text-sm font-medium text-foreground">{row.product.name}</td>
-                      <td className="px-4 py-3 text-sm text-muted-foreground">{row.product.brand?.name || "—"}</td>
                       {editingRow === row.product.id ? (
                         <>
                           <td className="px-2 py-1 text-right">
