@@ -27,7 +27,6 @@ export default function Inventory() {
 
   const [shopFilter, setShopFilter] = useState<string>("all");
   const [brandFilter, setBrandFilter] = useState<string>("all");
-  const [categoryFilter, setCategoryFilter] = useState<string>("all");
   const [search, setSearch] = useState("");
 
   const [adjustModal, setAdjustModal] = useState<{ open: boolean; item: any | null }>({ open: false, item: null });
@@ -36,10 +35,10 @@ export default function Inventory() {
   const [adjustNote, setAdjustNote] = useState("");
 
   const [addModal, setAddModal] = useState(false);
-  const [newProduct, setNewProduct] = useState({ name: "", sku: "", brand_id: "", category: "Other", unit: "pcs", shop_id: "", quantity: "0", min_threshold: "10" });
+  const [newProduct, setNewProduct] = useState({ name: "", brand_id: "", unit: "pcs", shop_id: "", quantity: "0", min_threshold: "10" });
   const [editingItem, setEditingItem] = useState<string | null>(null);
   const [editModal, setEditModal] = useState<{ open: boolean; item: any | null }>({ open: false, item: null });
-  const [editFields, setEditFields] = useState({ name: "", sku: "", brand_id: "", category: "Other" });
+  const [editFields, setEditFields] = useState({ name: "", brand_id: "" });
   const [deleteConfirm, setDeleteConfirm] = useState<{ open: boolean; item: any | null }>({ open: false, item: null });
 
   // Fetch data
@@ -77,11 +76,12 @@ export default function Inventory() {
     mutationFn: async () => {
       const item = editModal.item;
       if (!item) return;
+      // Auto-generate SKU if missing (using name + id)
+      const sku = `${editFields.name.substring(0, 3).toUpperCase()}-${item.product_id.slice(-6)}`;
       const { error } = await supabase.from("products").update({
         name: editFields.name,
-        sku: editFields.sku,
+        sku: sku,
         brand_id: editFields.brand_id || null,
-        category: editFields.category as any,
       }).eq("id", item.product_id);
       if (error) throw error;
     },
@@ -112,9 +112,7 @@ export default function Inventory() {
   const openEditModal = (item: any) => {
     setEditFields({
       name: item.product?.name || "",
-      sku: item.product?.sku || "",
       brand_id: item.product?.brand_id || "",
-      category: item.product?.category || "Other",
     });
     setEditModal({ open: true, item });
   };
@@ -156,11 +154,12 @@ export default function Inventory() {
   const addProduct = useMutation({
     mutationFn: async () => {
       if (!appUser) return;
+      // Generate SKU from product name + timestamp
+      const sku = `${newProduct.name.substring(0, 3).toUpperCase()}-${Date.now().toString().slice(-6)}`;
       const { data: prod, error: prodErr } = await supabase.from("products").insert({
         name: newProduct.name,
-        sku: newProduct.sku,
+        sku: sku,
         brand_id: newProduct.brand_id || null,
-        category: newProduct.category as any,
         unit: newProduct.unit,
       }).select().single();
       if (prodErr) throw prodErr;
@@ -179,7 +178,7 @@ export default function Inventory() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["inventory"] });
       setAddModal(false);
-      setNewProduct({ name: "", sku: "", brand_id: "", category: "Other", unit: "pcs", shop_id: "", quantity: "0", min_threshold: "10" });
+      setNewProduct({ name: "", brand_id: "", unit: "pcs", shop_id: "", quantity: "0", min_threshold: "10" });
       toast({ title: "Product added successfully" });
     },
     onError: (err: any) => toast({ title: "Error", description: err.message, variant: "destructive" }),
@@ -189,10 +188,9 @@ export default function Inventory() {
   const filtered = inventory.filter((item: any) => {
     if (shopFilter !== "all" && item.shop_id !== shopFilter) return false;
     if (brandFilter !== "all" && item.product?.brand_id !== brandFilter) return false;
-    if (categoryFilter !== "all" && item.product?.category !== categoryFilter) return false;
     if (search) {
       const s = search.toLowerCase();
-      if (!item.product?.name?.toLowerCase().includes(s) && !item.product?.sku?.toLowerCase().includes(s)) return false;
+      if (!item.product?.name?.toLowerCase().includes(s)) return false;
     }
     return true;
   });
@@ -247,17 +245,7 @@ export default function Inventory() {
             {brands.map((b: any) => <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>)}
           </SelectContent>
         </Select>
-        <Select value={categoryFilter} onValueChange={setCategoryFilter}>
-          <SelectTrigger className="w-40"><SelectValue placeholder="All Categories" /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Categories</SelectItem>
-            <SelectItem value="Dhuli">Dhuli</SelectItem>
-            <SelectItem value="Dryfruits">Dryfruits</SelectItem>
-            <SelectItem value="Oil">Oil</SelectItem>
-            <SelectItem value="Other">Other</SelectItem>
-          </SelectContent>
-        </Select>
-        <Input placeholder="Search product or SKU..." value={search} onChange={(e) => setSearch(e.target.value)} className="w-56" />
+        <Input placeholder="Search product..." value={search} onChange={(e) => setSearch(e.target.value)} className="w-56" />
         {canAdd && (
           <Button onClick={() => setAddModal(true)} className="ml-auto gap-2">
             <Plus className="h-4 w-4" /> Add Product
@@ -278,9 +266,7 @@ export default function Inventory() {
             <thead>
               <tr className="border-b border-border text-left">
                 <th className="px-4 py-3 text-xs font-semibold uppercase text-muted-foreground">Product</th>
-                <th className="px-4 py-3 text-xs font-semibold uppercase text-muted-foreground">SKU</th>
                 <th className="px-4 py-3 text-xs font-semibold uppercase text-muted-foreground">Brand</th>
-                <th className="px-4 py-3 text-xs font-semibold uppercase text-muted-foreground">Category</th>
                 <th className="px-4 py-3 text-xs font-semibold uppercase text-muted-foreground">Shop</th>
                 <th className="px-4 py-3 text-xs font-semibold uppercase text-muted-foreground">Qty</th>
                 <th className="px-4 py-3 text-xs font-semibold uppercase text-muted-foreground">Min Threshold</th>
@@ -297,9 +283,7 @@ export default function Inventory() {
                 return (
                   <tr key={item.id} className="border-b border-border last:border-0">
                     <td className="px-4 py-3 text-sm font-medium text-foreground">{item.product?.name}</td>
-                    <td className="px-4 py-3 text-sm text-muted-foreground">{item.product?.sku}</td>
                     <td className="px-4 py-3 text-sm text-muted-foreground">{item.product?.brand?.name || "—"}</td>
-                    <td className="px-4 py-3 text-sm text-muted-foreground">{item.product?.category}</td>
                     <td className="px-4 py-3 text-sm text-muted-foreground">{item.shop?.name}</td>
                     <td className={`px-4 py-3 text-sm font-medium ${status === "low_stock" || status === "out_of_stock" ? "text-destructive" : "text-foreground"}`}>
                       {qty}
@@ -384,15 +368,9 @@ export default function Inventory() {
             <DialogTitle>Add New Product</DialogTitle>
           </DialogHeader>
           <div className="grid gap-4 py-2">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Product Name</Label>
-                <Input value={newProduct.name} onChange={(e) => setNewProduct(p => ({ ...p, name: e.target.value }))} />
-              </div>
-              <div className="space-y-2">
-                <Label>SKU</Label>
-                <Input value={newProduct.sku} onChange={(e) => setNewProduct(p => ({ ...p, sku: e.target.value }))} />
-              </div>
+            <div className="space-y-2">
+              <Label>Product Name</Label>
+              <Input value={newProduct.name} onChange={(e) => setNewProduct(p => ({ ...p, name: e.target.value }))} />
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
@@ -421,7 +399,7 @@ export default function Inventory() {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setAddModal(false)}>Cancel</Button>
-            <Button onClick={() => addProduct.mutate()} disabled={!newProduct.name || !newProduct.sku || addProduct.isPending}>
+            <Button onClick={() => addProduct.mutate()} disabled={!newProduct.name || addProduct.isPending}>
               {addProduct.isPending ? "Adding..." : "Add Product"}
             </Button>
           </DialogFooter>
@@ -440,10 +418,6 @@ export default function Inventory() {
               <Input value={editFields.name} onChange={(e) => setEditFields(p => ({ ...p, name: e.target.value }))} />
             </div>
             <div className="space-y-2">
-              <Label>SKU</Label>
-              <Input value={editFields.sku} onChange={(e) => setEditFields(p => ({ ...p, sku: e.target.value }))} />
-            </div>
-            <div className="space-y-2">
               <Label>Brand</Label>
               <Select value={editFields.brand_id} onValueChange={(v) => setEditFields(p => ({ ...p, brand_id: v }))}>
                 <SelectTrigger><SelectValue placeholder="Select brand" /></SelectTrigger>
@@ -452,22 +426,10 @@ export default function Inventory() {
                 </SelectContent>
               </Select>
             </div>
-            <div className="space-y-2">
-              <Label>Category</Label>
-              <Select value={editFields.category} onValueChange={(v) => setEditFields(p => ({ ...p, category: v }))}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="Dhuli">Dhuli</SelectItem>
-                  <SelectItem value="Dryfruits">Dryfruits</SelectItem>
-                  <SelectItem value="Oil">Oil</SelectItem>
-                  <SelectItem value="Other">Other</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setEditModal({ open: false, item: null })}>Cancel</Button>
-            <Button onClick={() => editProduct.mutate()} disabled={!editFields.name || !editFields.sku || editProduct.isPending}>
+            <Button onClick={() => editProduct.mutate()} disabled={!editFields.name || editProduct.isPending}>
               {editProduct.isPending ? "Saving..." : "Save Changes"}
             </Button>
           </DialogFooter>
