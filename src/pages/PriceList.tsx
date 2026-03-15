@@ -100,11 +100,16 @@ export default function PriceList() {
     };
   });
 
-  // Group by category
-  const categories = ["Dhuli", "Dryfruits", "Oil", "Other"] as const;
-  const grouped = categories.map((cat) => ({
-    category: cat,
-    rows: priceRows.filter((r) => r.product.category === cat),
+  // Group by brand instead of category
+  const brands = products.reduce((acc, p) => {
+    const brandName = p.brand?.name || "Other";
+    if (!acc.includes(brandName)) acc.push(brandName);
+    return acc;
+  }, [] as string[]);
+
+  const grouped = brands.map((brand) => ({
+    brand,
+    rows: priceRows.filter((r) => (r.product.brand?.name || "Other") === brand),
   })).filter((g) => g.rows.length > 0);
 
   // Open create modal and pre-fill prices
