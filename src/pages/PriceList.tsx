@@ -346,7 +346,7 @@ export default function PriceList() {
                 <thead>
                   <tr className="border-b border-border bg-muted/50 text-left">
                     <th className="px-4 py-2 text-xs font-semibold uppercase text-muted-foreground">Product</th>
-                    <th className="px-4 py-2 text-xs font-semibold uppercase text-muted-foreground">Category</th>
+                    <th className="px-4 py-2 text-xs font-semibold uppercase text-muted-foreground">Brand</th>
                      <th className="px-4 py-2 text-xs font-semibold uppercase text-muted-foreground">Dealer ₹</th>
                      <th className="px-4 py-2 text-xs font-semibold uppercase text-muted-foreground">Retailer ₹</th>
                   </tr>
@@ -355,7 +355,7 @@ export default function PriceList() {
                   {products.map((p) => (
                     <tr key={p.id} className="border-b border-border last:border-0">
                       <td className="px-4 py-2 text-sm font-medium text-foreground">{p.name}</td>
-                      <td className="px-4 py-2 text-sm text-muted-foreground">{p.category}</td>
+                      <td className="px-4 py-2 text-sm text-muted-foreground">{p.brand?.name || "—"}</td>
                       <td className="px-2 py-1">
                         <Input
                           type="number"
