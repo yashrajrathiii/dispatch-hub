@@ -362,15 +362,9 @@ export default function Inventory() {
             <DialogTitle>Add New Product</DialogTitle>
           </DialogHeader>
           <div className="grid gap-4 py-2">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Product Name</Label>
-                <Input value={newProduct.name} onChange={(e) => setNewProduct(p => ({ ...p, name: e.target.value }))} />
-              </div>
-              <div className="space-y-2">
-                <Label>SKU</Label>
-                <Input value={newProduct.sku} onChange={(e) => setNewProduct(p => ({ ...p, sku: e.target.value }))} />
-              </div>
+            <div className="space-y-2">
+              <Label>Product Name</Label>
+              <Input value={newProduct.name} onChange={(e) => setNewProduct(p => ({ ...p, name: e.target.value }))} />
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
@@ -399,7 +393,7 @@ export default function Inventory() {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setAddModal(false)}>Cancel</Button>
-            <Button onClick={() => addProduct.mutate()} disabled={!newProduct.name || !newProduct.sku || addProduct.isPending}>
+            <Button onClick={() => addProduct.mutate()} disabled={!newProduct.name || addProduct.isPending}>
               {addProduct.isPending ? "Adding..." : "Add Product"}
             </Button>
           </DialogFooter>
