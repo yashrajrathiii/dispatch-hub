@@ -78,9 +78,7 @@ export default function Inventory() {
       if (!item) return;
       const { error } = await supabase.from("products").update({
         name: editFields.name,
-        sku: editFields.sku,
         brand_id: editFields.brand_id || null,
-        category: editFields.category as any,
       }).eq("id", item.product_id);
       if (error) throw error;
     },
