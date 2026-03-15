@@ -2,7 +2,6 @@ import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
-import StatusBadge, { Status } from "@/components/StatusBadge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -11,13 +10,21 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { useToast } from "@/hooks/use-toast";
-import { Package, AlertTriangle, XCircle, Plus, Pencil, Trash2, MoreHorizontal, ArrowUpDown } from "lucide-react";
+import { Package, CheckCircle, XCircle, Plus, Pencil, Trash2, MoreHorizontal, ArrowUpDown } from "lucide-react";
 
-function getInventoryStatus(qty: number, threshold: number): Status {
-  if (qty === 0) return "out_of_stock";
-  if (qty <= threshold) return "low_stock";
-  if (qty <= threshold * 2) return "low";
-  return "ok";
+function getStockStatus(qty: number): "in_stock" | "out_of_stock" {
+  return qty > 0 ? "in_stock" : "out_of_stock";
+}
+
+function StockBadge({ qty }: { qty: number }) {
+  const inStock = qty > 0;
+  return (
+    <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${
+      inStock ? "bg-success/10 text-success" : "bg-destructive/10 text-destructive"
+    }`}>
+      {inStock ? "In Stock" : "Out of Stock"}
+    </span>
+  );
 }
 
 export default function Inventory() {
@@ -35,13 +42,11 @@ export default function Inventory() {
   const [adjustNote, setAdjustNote] = useState("");
 
   const [addModal, setAddModal] = useState(false);
-  const [newProduct, setNewProduct] = useState({ name: "", brand_id: "", unit: "pcs", shop_id: "", quantity: "0", min_threshold: "10" });
-  const [editingItem, setEditingItem] = useState<string | null>(null);
+  const [newProduct, setNewProduct] = useState({ name: "", brand_id: "", unit: "pcs", shop_id: "", quantity: "0" });
   const [editModal, setEditModal] = useState<{ open: boolean; item: any | null }>({ open: false, item: null });
   const [editFields, setEditFields] = useState({ name: "", brand_id: "" });
   const [deleteConfirm, setDeleteConfirm] = useState<{ open: boolean; item: any | null }>({ open: false, item: null });
 
-  // Fetch data
   const { data: inventory = [], isLoading } = useQuery({
     queryKey: ["inventory"],
     queryFn: async () => {
@@ -71,16 +76,14 @@ export default function Inventory() {
 
   const godowns = shops.filter((s: any) => s.type === "GODOWN");
 
-  // Edit product mutation
   const editProduct = useMutation({
     mutationFn: async () => {
       const item = editModal.item;
       if (!item) return;
-      // Auto-generate SKU if missing (using name + id)
       const sku = `${editFields.name.substring(0, 3).toUpperCase()}-${item.product_id.slice(-6)}`;
       const { error } = await supabase.from("products").update({
         name: editFields.name,
-        sku: sku,
+        sku,
         brand_id: editFields.brand_id || null,
       }).eq("id", item.product_id);
       if (error) throw error;
@@ -97,7 +100,6 @@ export default function Inventory() {
     mutationFn: async (item: any) => {
       const { error: invErr } = await supabase.from("inventory").delete().eq("id", item.id);
       if (invErr) throw invErr;
-      // Also deactivate the product
       const { error: prodErr } = await supabase.from("products").update({ is_active: false }).eq("id", item.product_id);
       if (prodErr) throw prodErr;
     },
@@ -117,7 +119,6 @@ export default function Inventory() {
     setEditModal({ open: true, item });
   };
 
-  // Mutations
   const adjustStock = useMutation({
     mutationFn: async () => {
       const item = adjustModal.item;
@@ -154,11 +155,10 @@ export default function Inventory() {
   const addProduct = useMutation({
     mutationFn: async () => {
       if (!appUser) return;
-      // Generate SKU from product name + timestamp
       const sku = `${newProduct.name.substring(0, 3).toUpperCase()}-${Date.now().toString().slice(-6)}`;
       const { data: prod, error: prodErr } = await supabase.from("products").insert({
         name: newProduct.name,
-        sku: sku,
+        sku,
         brand_id: newProduct.brand_id || null,
         unit: newProduct.unit,
       }).select().single();
@@ -169,7 +169,7 @@ export default function Inventory() {
           shop_id: newProduct.shop_id,
           product_id: prod.id,
           quantity: Number(newProduct.quantity),
-          min_threshold: Number(newProduct.min_threshold),
+          min_threshold: 0,
           updated_by_user_id: appUser.id,
         });
         if (invErr) throw invErr;
@@ -178,13 +178,12 @@ export default function Inventory() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["inventory"] });
       setAddModal(false);
-      setNewProduct({ name: "", brand_id: "", unit: "pcs", shop_id: "", quantity: "0", min_threshold: "10" });
+      setNewProduct({ name: "", brand_id: "", unit: "pcs", shop_id: "", quantity: "0" });
       toast({ title: "Product added successfully" });
     },
     onError: (err: any) => toast({ title: "Error", description: err.message, variant: "destructive" }),
   });
 
-  // Filter
   const filtered = inventory.filter((item: any) => {
     if (shopFilter !== "all" && item.shop_id !== shopFilter) return false;
     if (brandFilter !== "all" && item.product?.brand_id !== brandFilter) return false;
@@ -195,9 +194,8 @@ export default function Inventory() {
     return true;
   });
 
-  // Stats
   const totalSKUs = inventory.length;
-  const lowStock = inventory.filter((i: any) => Number(i.quantity) > 0 && Number(i.quantity) <= Number(i.min_threshold)).length;
+  const inStockCount = inventory.filter((i: any) => Number(i.quantity) > 0).length;
   const outOfStock = inventory.filter((i: any) => Number(i.quantity) === 0).length;
 
   const canAdd = appUser?.role === "OWNER" || appUser?.role === "ADMIN";
@@ -213,12 +211,12 @@ export default function Inventory() {
           </div>
           <p className="mt-2 text-3xl font-bold text-foreground">{totalSKUs}</p>
         </div>
-        <div className="rounded-lg border border-warning/30 bg-warning/5 p-5 shadow-sm">
+        <div className="rounded-lg border border-success/30 bg-success/5 p-5 shadow-sm">
           <div className="flex items-center justify-between">
-            <p className="text-sm font-medium text-warning">Low Stock Items</p>
-            <AlertTriangle className="h-5 w-5 text-warning" />
+            <p className="text-sm font-medium text-success">In Stock Items</p>
+            <CheckCircle className="h-5 w-5 text-success" />
           </div>
-          <p className="mt-2 text-3xl font-bold text-warning">{lowStock}</p>
+          <p className="mt-2 text-3xl font-bold text-success">{inStockCount}</p>
         </div>
         <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-5 shadow-sm">
           <div className="flex items-center justify-between">
@@ -269,7 +267,6 @@ export default function Inventory() {
                 <th className="px-4 py-3 text-xs font-semibold uppercase text-muted-foreground">Brand</th>
                 <th className="px-4 py-3 text-xs font-semibold uppercase text-muted-foreground">Shop</th>
                 <th className="px-4 py-3 text-xs font-semibold uppercase text-muted-foreground">Qty</th>
-                <th className="px-4 py-3 text-xs font-semibold uppercase text-muted-foreground">Min Threshold</th>
                 <th className="px-4 py-3 text-xs font-semibold uppercase text-muted-foreground">Status</th>
                 <th className="px-4 py-3 text-xs font-semibold uppercase text-muted-foreground">Last Updated</th>
                 <th className="px-4 py-3 text-xs font-semibold uppercase text-muted-foreground">Actions</th>
@@ -278,18 +275,15 @@ export default function Inventory() {
             <tbody>
               {filtered.map((item: any) => {
                 const qty = Number(item.quantity);
-                const threshold = Number(item.min_threshold);
-                const status = getInventoryStatus(qty, threshold);
                 return (
                   <tr key={item.id} className="border-b border-border last:border-0">
                     <td className="px-4 py-3 text-sm font-medium text-foreground">{item.product?.name}</td>
                     <td className="px-4 py-3 text-sm text-muted-foreground">{item.product?.brand?.name || "—"}</td>
                     <td className="px-4 py-3 text-sm text-muted-foreground">{item.shop?.name}</td>
-                    <td className={`px-4 py-3 text-sm font-medium ${status === "low_stock" || status === "out_of_stock" ? "text-destructive" : "text-foreground"}`}>
+                    <td className={`px-4 py-3 text-sm font-medium ${qty === 0 ? "text-destructive" : "text-foreground"}`}>
                       {qty}
                     </td>
-                    <td className="px-4 py-3 text-sm text-muted-foreground">{threshold}</td>
-                    <td className="px-4 py-3"><StatusBadge status={status} /></td>
+                    <td className="px-4 py-3"><StockBadge qty={qty} /></td>
                     <td className="px-4 py-3 text-sm text-muted-foreground">
                       {new Date(item.last_updated_at).toLocaleDateString()}
                     </td>
