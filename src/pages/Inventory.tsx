@@ -27,7 +27,6 @@ export default function Inventory() {
 
   const [shopFilter, setShopFilter] = useState<string>("all");
   const [brandFilter, setBrandFilter] = useState<string>("all");
-  const [categoryFilter, setCategoryFilter] = useState<string>("all");
   const [search, setSearch] = useState("");
 
   const [adjustModal, setAdjustModal] = useState<{ open: boolean; item: any | null }>({ open: false, item: null });
