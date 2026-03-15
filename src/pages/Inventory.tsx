@@ -239,17 +239,7 @@ export default function Inventory() {
             {brands.map((b: any) => <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>)}
           </SelectContent>
         </Select>
-        <Select value={categoryFilter} onValueChange={setCategoryFilter}>
-          <SelectTrigger className="w-40"><SelectValue placeholder="All Categories" /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Categories</SelectItem>
-            <SelectItem value="Dhuli">Dhuli</SelectItem>
-            <SelectItem value="Dryfruits">Dryfruits</SelectItem>
-            <SelectItem value="Oil">Oil</SelectItem>
-            <SelectItem value="Other">Other</SelectItem>
-          </SelectContent>
-        </Select>
-        <Input placeholder="Search product or SKU..." value={search} onChange={(e) => setSearch(e.target.value)} className="w-56" />
+        <Input placeholder="Search product..." value={search} onChange={(e) => setSearch(e.target.value)} className="w-56" />
         {canAdd && (
           <Button onClick={() => setAddModal(true)} className="ml-auto gap-2">
             <Plus className="h-4 w-4" /> Add Product
