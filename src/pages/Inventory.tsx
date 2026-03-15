@@ -153,9 +153,7 @@ export default function Inventory() {
       if (!appUser) return;
       const { data: prod, error: prodErr } = await supabase.from("products").insert({
         name: newProduct.name,
-        sku: newProduct.sku,
         brand_id: newProduct.brand_id || null,
-        category: newProduct.category as any,
         unit: newProduct.unit,
       }).select().single();
       if (prodErr) throw prodErr;
@@ -174,7 +172,7 @@ export default function Inventory() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["inventory"] });
       setAddModal(false);
-      setNewProduct({ name: "", sku: "", brand_id: "", category: "Other", unit: "pcs", shop_id: "", quantity: "0", min_threshold: "10" });
+      setNewProduct({ name: "", brand_id: "", unit: "pcs", shop_id: "", quantity: "0", min_threshold: "10" });
       toast({ title: "Product added successfully" });
     },
     onError: (err: any) => toast({ title: "Error", description: err.message, variant: "destructive" }),
