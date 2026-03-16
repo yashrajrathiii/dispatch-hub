@@ -1,0 +1,1 @@
+ALTER TABLE public.products ADD COLUMN pieces_per_box NUMERIC NULL;

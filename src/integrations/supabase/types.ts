@@ -531,6 +531,7 @@ export type Database = {
           id: string
           is_active: boolean
           name: string
+          pieces_per_box: number | null
           sku: string
           unit: string
         }
@@ -541,6 +542,7 @@ export type Database = {
           id?: string
           is_active?: boolean
           name: string
+          pieces_per_box?: number | null
           sku: string
           unit?: string
         }
@@ -551,6 +553,7 @@ export type Database = {
           id?: string
           is_active?: boolean
           name?: string
+          pieces_per_box?: number | null
           sku?: string
           unit?: string
         }
