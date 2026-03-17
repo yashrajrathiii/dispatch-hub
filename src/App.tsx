@@ -16,9 +16,12 @@ import OrderDetail from "@/pages/OrderDetail";
 import WalkinPurchase from "@/pages/WalkinPurchase";
 import Billing from "@/pages/Billing";
 import BillingDetail from "@/pages/BillingDetail";
+import Dispatch from "@/pages/Dispatch";
+import DriverView from "@/pages/DriverView";
 import PlaceholderPage from "@/pages/PlaceholderPage";
 import SettingsShops from "@/pages/SettingsShops";
 import SettingsBrands from "@/pages/SettingsBrands";
+import SettingsLocations from "@/pages/SettingsLocations";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -60,8 +63,12 @@ const App = () => (
               <Route path="/billing/:id" element={<BillingDetail />} />
             </Route>
 
-            <Route element={<ProtectedRoute allowedRoles={["OWNER", "ADMIN", "STAFF", "DRIVER"]}><AppLayout title="Dispatch" /></ProtectedRoute>}>
-              <Route path="/dispatch" element={<PlaceholderPage title="Dispatch" />} />
+            <Route element={<ProtectedRoute allowedRoles={["OWNER", "ADMIN", "STAFF"]}><AppLayout title="Dispatch" /></ProtectedRoute>}>
+              <Route path="/dispatch" element={<Dispatch />} />
+            </Route>
+
+            <Route element={<ProtectedRoute allowedRoles={["DRIVER"]}><AppLayout title="My Deliveries" /></ProtectedRoute>}>
+              <Route path="/driver" element={<DriverView />} />
             </Route>
 
             <Route element={<ProtectedRoute allowedRoles={["OWNER", "ADMIN", "STAFF"]}><AppLayout title="Buyers" /></ProtectedRoute>}>
@@ -72,6 +79,7 @@ const App = () => (
               <Route path="/settings" element={<PlaceholderPage title="Settings" />} />
               <Route path="/settings/shops" element={<SettingsShops />} />
               <Route path="/settings/brands" element={<SettingsBrands />} />
+              <Route path="/settings/locations" element={<SettingsLocations />} />
             </Route>
 
             <Route path="*" element={<NotFound />} />

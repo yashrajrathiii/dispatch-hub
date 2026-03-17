@@ -10,6 +10,8 @@ import {
   Building2,
   Tag,
   Receipt,
+  MapPin,
+  Navigation,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useAuth, AppRole } from "@/contexts/AuthContext";
@@ -29,13 +31,15 @@ const allItems: NavItem[] = [
   { title: "Orders", url: "/orders", icon: ShoppingCart, roles: ["OWNER", "ADMIN", "STAFF"] },
   { title: "Walk-in Purchase", url: "/walk-in", icon: Store, roles: ["OWNER", "ADMIN", "STAFF"] },
   { title: "Billing", url: "/billing", icon: Receipt, roles: ["OWNER", "ADMIN", "ACCOUNTANT"] },
-  { title: "Dispatch", url: "/dispatch", icon: Truck, roles: ["OWNER", "ADMIN", "STAFF", "DRIVER"] },
+  { title: "Dispatch", url: "/dispatch", icon: Truck, roles: ["OWNER", "ADMIN", "STAFF"] },
+  { title: "My Deliveries", url: "/driver", icon: Navigation, roles: ["DRIVER"] },
   { title: "Buyers", url: "/buyers", icon: Users, roles: ["OWNER", "ADMIN", "STAFF"] },
   {
     title: "Settings", url: "/settings", icon: Settings, roles: ["OWNER", "ADMIN"],
     children: [
       { title: "Shops", url: "/settings/shops", icon: Building2 },
       { title: "Brands", url: "/settings/brands", icon: Tag },
+      { title: "Locations", url: "/settings/locations", icon: MapPin },
     ],
   },
 ];
