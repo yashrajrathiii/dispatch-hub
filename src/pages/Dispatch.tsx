@@ -381,7 +381,7 @@ export default function Dispatch() {
                               {g.name}
                             </div>
                           </SelectItem>
-                        ))
+                        ))}
                       </SelectContent>
                     </Select>
                   </div>
