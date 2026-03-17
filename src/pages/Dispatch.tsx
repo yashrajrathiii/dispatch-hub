@@ -587,7 +587,7 @@ export default function Dispatch() {
                       <SelectContent>
                         {drivers.map((d: any) => (
                           <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>
-                        ))
+                        ))}
                       </SelectContent>
                     </Select>
                   </div>
