@@ -6,37 +6,39 @@ import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
-import { CalendarIcon, Plus, History, Pencil, Check, X } from "lucide-react";
+import { CalendarIcon, Plus, Pencil, Check, X, ChevronDown, ChevronRight } from "lucide-react";
 import type { Tables } from "@/integrations/supabase/types";
 
 type Product = Tables<"products"> & { brand: Tables<"brands"> | null };
-type PriceList = Tables<"price_lists">;
+type PriceList = Tables<"price_lists"> & { creator?: { name: string } | null };
 type ProductPrice = Tables<"product_prices">;
 
 interface PriceRow {
   product: Product;
   dealer: number;
   retailer: number;
+  walkin: number;
 }
 
 export default function PriceList() {
   const { appUser } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const [tab, setTab] = useState("active");
   const [createOpen, setCreateOpen] = useState(false);
-  const [historyOpen, setHistoryOpen] = useState(false);
   const [newName, setNewName] = useState("");
   const [effectiveDate, setEffectiveDate] = useState<Date>(new Date());
-  const [editPrices, setEditPrices] = useState<Record<string, { dealer: string; retailer: string }>>({});
+  const [editPrices, setEditPrices] = useState<Record<string, { dealer: string; retailer: string; walkin: string }>>({});
   const [editingRow, setEditingRow] = useState<string | null>(null);
-  const [inlineEdit, setInlineEdit] = useState<{ dealer: string; retailer: string }>({ dealer: "0", retailer: "0" });
+  const [inlineEdit, setInlineEdit] = useState<{ dealer: string; retailer: string; walkin: string }>({ dealer: "0", retailer: "0", walkin: "0" });
+  const [expandedListId, setExpandedListId] = useState<string | null>(null);
 
-  // Fetch active price list
   const { data: activePriceList } = useQuery({
     queryKey: ["active-price-list"],
     queryFn: async () => {
@@ -51,7 +53,6 @@ export default function PriceList() {
     },
   });
 
-  // Fetch products
   const { data: products = [] } = useQuery({
     queryKey: ["all-products"],
     queryFn: async () => {
@@ -64,7 +65,6 @@ export default function PriceList() {
     },
   });
 
-  // Fetch prices for active list
   const { data: activePrices = [] } = useQuery({
     queryKey: ["product-prices", activePriceList?.id],
     enabled: !!activePriceList?.id,
@@ -77,30 +77,42 @@ export default function PriceList() {
     },
   });
 
-  // Fetch all price lists for history
   const { data: allPriceLists = [] } = useQuery({
     queryKey: ["all-price-lists"],
     queryFn: async () => {
       const { data } = await supabase
         .from("price_lists")
-        .select("*")
+        .select("*, creator:users!price_lists_created_by_user_id_fkey(name)")
         .order("effective_date", { ascending: false });
       return (data || []) as PriceList[];
     },
   });
 
-  // Build price rows
-  const priceRows: PriceRow[] = products.map((p) => {
-    const dealer = activePrices.find((pp) => pp.product_id === p.id && pp.buyer_category === "DEALER");
-    const retailer = activePrices.find((pp) => pp.product_id === p.id && pp.buyer_category === "RETAILER");
-    return {
-      product: p,
-      dealer: dealer ? Number(dealer.price_per_unit) : 0,
-      retailer: retailer ? Number(retailer.price_per_unit) : 0,
-    };
+  // Prices for the currently expanded list
+  const { data: expandedPrices = [] } = useQuery({
+    queryKey: ["product-prices-expanded", expandedListId],
+    enabled: !!expandedListId,
+    queryFn: async () => {
+      const { data } = await supabase.from("product_prices").select("*").eq("price_list_id", expandedListId!);
+      return (data || []) as ProductPrice[];
+    },
   });
 
-  // Group by brand instead of category
+  const buildRows = (prices: ProductPrice[]): PriceRow[] =>
+    products.map((p) => {
+      const dealer = prices.find((pp) => pp.product_id === p.id && pp.buyer_category === "DEALER");
+      const retailer = prices.find((pp) => pp.product_id === p.id && pp.buyer_category === "RETAILER");
+      const walkin = prices.find((pp) => pp.product_id === p.id && pp.buyer_category === "WALKIN");
+      return {
+        product: p,
+        dealer: dealer ? Number(dealer.price_per_unit) : 0,
+        retailer: retailer ? Number(retailer.price_per_unit) : 0,
+        walkin: walkin ? Number(walkin.price_per_unit) : 0,
+      };
+    });
+
+  const priceRows = buildRows(activePrices);
+
   const brands = products.reduce((acc, p) => {
     const brandName = p.brand?.name || "Other";
     if (!acc.includes(brandName)) acc.push(brandName);
@@ -112,14 +124,14 @@ export default function PriceList() {
     rows: priceRows.filter((r) => (r.product.brand?.name || "Other") === brand),
   })).filter((g) => g.rows.length > 0);
 
-  // Open create modal and pre-fill prices
   const handleOpenCreate = () => {
-    const prices: Record<string, { dealer: string; retailer: string }> = {};
+    const prices: Record<string, { dealer: string; retailer: string; walkin: string }> = {};
     products.forEach((p) => {
       const row = priceRows.find((r) => r.product.id === p.id);
-    prices[p.id] = {
+      prices[p.id] = {
         dealer: String(row?.dealer ?? 0),
         retailer: String(row?.retailer ?? 0),
+        walkin: String(row?.walkin ?? 0),
       };
     });
     setEditPrices(prices);
@@ -131,11 +143,8 @@ export default function PriceList() {
   const savePriceList = useMutation({
     mutationFn: async () => {
       if (!appUser) return;
-
-      // Deactivate all existing
       await supabase.from("price_lists").update({ is_active: false }).eq("is_active", true);
 
-      // Create new list
       const { data: newList, error: listErr } = await supabase
         .from("price_lists")
         .insert({
@@ -148,16 +157,10 @@ export default function PriceList() {
         .single();
       if (listErr) throw listErr;
 
-      // Insert all prices
-      const rows: Array<{
-        price_list_id: string;
-        product_id: string;
-        buyer_category: "DEALER" | "RETAILER";
-        price_per_unit: number;
-      }> = [];
+      const rows: Array<{ price_list_id: string; product_id: string; buyer_category: "DEALER" | "RETAILER" | "WALKIN"; price_per_unit: number }> = [];
       for (const [productId, vals] of Object.entries(editPrices)) {
-        (["DEALER", "RETAILER"] as const).forEach((cat) => {
-          const key = cat.toLowerCase() as "dealer" | "retailer";
+        (["DEALER", "RETAILER", "WALKIN"] as const).forEach((cat) => {
+          const key = cat.toLowerCase() as "dealer" | "retailer" | "walkin";
           rows.push({
             price_list_id: newList.id,
             product_id: productId,
@@ -184,15 +187,15 @@ export default function PriceList() {
 
   const startInlineEdit = (row: PriceRow) => {
     setEditingRow(row.product.id);
-    setInlineEdit({ dealer: String(row.dealer), retailer: String(row.retailer) });
+    setInlineEdit({ dealer: String(row.dealer), retailer: String(row.retailer), walkin: String(row.walkin) });
   };
 
   const saveInlineEdit = useMutation({
     mutationFn: async (productId: string) => {
       if (!activePriceList) return;
-      const categories = ["DEALER", "RETAILER"] as const;
-      for (const cat of categories) {
-        const key = cat.toLowerCase() as "dealer" | "retailer";
+      const cats = ["DEALER", "RETAILER", "WALKIN"] as const;
+      for (const cat of cats) {
+        const key = cat.toLowerCase() as "dealer" | "retailer" | "walkin";
         const existing = activePrices.find((pp) => pp.product_id === productId && pp.buyer_category === cat);
         if (existing) {
           await supabase.from("product_prices").update({ price_per_unit: Number(inlineEdit[key]) || 0 }).eq("id", existing.id);
@@ -216,95 +219,159 @@ export default function PriceList() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-lg font-semibold text-foreground">
-            {activePriceList ? activePriceList.name : "No Active Price List"}
-          </h2>
-          {activePriceList && (
-            <p className="text-sm text-muted-foreground">
-              Effective from {format(new Date(activePriceList.effective_date), "dd MMM yyyy")}
-            </p>
-          )}
-        </div>
-        <div className="flex gap-2">
-          <Button variant="outline" onClick={() => setHistoryOpen(true)} className="gap-2">
-            <History className="h-4 w-4" /> History
-          </Button>
-          {canEdit && (
+      <Tabs value={tab} onValueChange={setTab}>
+        <div className="flex items-center justify-between">
+          <TabsList>
+            <TabsTrigger value="active">Active Price List</TabsTrigger>
+            <TabsTrigger value="history">History</TabsTrigger>
+          </TabsList>
+          {canEdit && tab === "active" && (
             <Button onClick={handleOpenCreate} className="gap-2">
               <Plus className="h-4 w-4" /> Create New Price List
             </Button>
           )}
         </div>
-      </div>
 
-      {/* Active price table */}
-      {grouped.length === 0 ? (
-        <div className="rounded-lg border border-border bg-card p-12 text-center text-muted-foreground">
-          No products found. Add products from Inventory first.
-        </div>
-      ) : (
-        <div className="space-y-6">
-          {grouped.map((group) => (
-            <div key={group.brand} className="rounded-lg border border-border bg-card shadow-sm overflow-hidden">
-              <div className="border-b border-border bg-muted/50 px-4 py-2">
-                <h3 className="text-sm font-semibold text-foreground">{group.brand}</h3>
-              </div>
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b border-border text-left">
-                    <th className="px-4 py-3 text-xs font-semibold uppercase text-muted-foreground">Product</th>
-                    <th className="px-4 py-3 text-xs font-semibold uppercase text-muted-foreground text-right">Dealer ₹</th>
-                    <th className="px-4 py-3 text-xs font-semibold uppercase text-muted-foreground text-right">Retailer ₹</th>
-                    {canEdit && <th className="px-4 py-3 text-xs font-semibold uppercase text-muted-foreground text-right">Actions</th>}
-                  </tr>
-                </thead>
-                <tbody>
-                  {group.rows.map((row) => (
-                    <tr key={row.product.id} className="border-b border-border last:border-0">
-                      <td className="px-4 py-3 text-sm font-medium text-foreground">{row.product.name}</td>
-                      {editingRow === row.product.id ? (
-                        <>
-                          <td className="px-2 py-1 text-right">
-                            <Input type="number" className="h-8 w-24 ml-auto" value={inlineEdit.dealer} onChange={(e) => setInlineEdit(prev => ({ ...prev, dealer: e.target.value }))} />
-                          </td>
-                          <td className="px-2 py-1 text-right">
-                            <Input type="number" className="h-8 w-24 ml-auto" value={inlineEdit.retailer} onChange={(e) => setInlineEdit(prev => ({ ...prev, retailer: e.target.value }))} />
-                          </td>
-                          <td className="px-4 py-3 text-right">
-                            <div className="flex justify-end gap-1">
-                              <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => saveInlineEdit.mutate(row.product.id)} disabled={saveInlineEdit.isPending}>
-                                <Check className="h-4 w-4 text-primary" />
-                              </Button>
-                              <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => setEditingRow(null)}>
-                                <X className="h-4 w-4 text-muted-foreground" />
-                              </Button>
-                            </div>
-                          </td>
-                        </>
-                      ) : (
-                        <>
-                          <td className="px-4 py-3 text-sm text-right font-medium text-foreground">{row.dealer > 0 ? `₹${row.dealer}` : "—"}</td>
-                          <td className="px-4 py-3 text-sm text-right font-medium text-foreground">{row.retailer > 0 ? `₹${row.retailer}` : "—"}</td>
-                          {canEdit && (
-                            <td className="px-4 py-3 text-right">
-                              <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => startInlineEdit(row)}>
-                                <Pencil className="h-3.5 w-3.5 text-muted-foreground" />
-                              </Button>
-                            </td>
-                          )}
-                        </>
-                      )}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+        <TabsContent value="active" className="mt-6 space-y-6">
+          <div>
+            <h2 className="text-lg font-semibold text-foreground">
+              {activePriceList ? activePriceList.name : "No Active Price List"}
+            </h2>
+            {activePriceList && (
+              <p className="text-sm text-muted-foreground">
+                Effective from {format(new Date(activePriceList.effective_date), "dd MMM yyyy")}
+              </p>
+            )}
+          </div>
+
+          {grouped.length === 0 ? (
+            <div className="rounded-lg border border-border bg-card p-12 text-center text-muted-foreground">
+              No products found. Add products from Inventory first.
             </div>
-          ))}
-        </div>
-      )}
+          ) : (
+            grouped.map((group) => (
+              <div key={group.brand} className="rounded-lg border border-border bg-card shadow-sm overflow-hidden">
+                <div className="border-b border-border bg-muted/50 px-4 py-2">
+                  <h3 className="text-sm font-semibold text-foreground">{group.brand}</h3>
+                </div>
+                <table className="w-full">
+                  <thead>
+                    <tr className="border-b border-border text-left">
+                      <th className="px-4 py-3 text-xs font-semibold uppercase text-muted-foreground">Product</th>
+                      <th className="px-4 py-3 text-xs font-semibold uppercase text-muted-foreground text-right">Dealer ₹</th>
+                      <th className="px-4 py-3 text-xs font-semibold uppercase text-muted-foreground text-right">Retailer ₹</th>
+                      <th className="px-4 py-3 text-xs font-semibold uppercase text-muted-foreground text-right">Walk-in ₹</th>
+                      {canEdit && <th className="px-4 py-3 text-xs font-semibold uppercase text-muted-foreground text-right">Actions</th>}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {group.rows.map((row) => (
+                      <tr key={row.product.id} className="border-b border-border last:border-0">
+                        <td className="px-4 py-3 text-sm font-medium text-foreground">{row.product.name}</td>
+                        {editingRow === row.product.id ? (
+                          <>
+                            <td className="px-2 py-1 text-right">
+                              <Input type="number" className="h-8 w-24 ml-auto" value={inlineEdit.dealer} onChange={(e) => setInlineEdit(p => ({ ...p, dealer: e.target.value }))} />
+                            </td>
+                            <td className="px-2 py-1 text-right">
+                              <Input type="number" className="h-8 w-24 ml-auto" value={inlineEdit.retailer} onChange={(e) => setInlineEdit(p => ({ ...p, retailer: e.target.value }))} />
+                            </td>
+                            <td className="px-2 py-1 text-right">
+                              <Input type="number" className="h-8 w-24 ml-auto" value={inlineEdit.walkin} onChange={(e) => setInlineEdit(p => ({ ...p, walkin: e.target.value }))} />
+                            </td>
+                            <td className="px-4 py-3 text-right">
+                              <div className="flex justify-end gap-1">
+                                <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => saveInlineEdit.mutate(row.product.id)} disabled={saveInlineEdit.isPending}>
+                                  <Check className="h-4 w-4 text-primary" />
+                                </Button>
+                                <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => setEditingRow(null)}>
+                                  <X className="h-4 w-4 text-muted-foreground" />
+                                </Button>
+                              </div>
+                            </td>
+                          </>
+                        ) : (
+                          <>
+                            <td className="px-4 py-3 text-sm text-right font-medium text-foreground">{row.dealer > 0 ? `₹${row.dealer}` : "—"}</td>
+                            <td className="px-4 py-3 text-sm text-right font-medium text-foreground">{row.retailer > 0 ? `₹${row.retailer}` : "—"}</td>
+                            <td className="px-4 py-3 text-sm text-right font-medium text-foreground">{row.walkin > 0 ? `₹${row.walkin}` : "—"}</td>
+                            {canEdit && (
+                              <td className="px-4 py-3 text-right">
+                                <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => startInlineEdit(row)}>
+                                  <Pencil className="h-3.5 w-3.5 text-muted-foreground" />
+                                </Button>
+                              </td>
+                            )}
+                          </>
+                        )}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ))
+          )}
+        </TabsContent>
+
+        <TabsContent value="history" className="mt-6 space-y-2">
+          {allPriceLists.length === 0 ? (
+            <div className="rounded-lg border border-border bg-card p-12 text-center text-muted-foreground">
+              No price list history yet.
+            </div>
+          ) : allPriceLists.map((pl) => {
+            const isExpanded = expandedListId === pl.id;
+            const rows = isExpanded ? buildRows(expandedPrices) : [];
+            return (
+              <div key={pl.id} className={cn("rounded-lg border bg-card shadow-sm", pl.is_active ? "border-primary/40" : "border-border")}>
+                <button
+                  onClick={() => setExpandedListId(isExpanded ? null : pl.id)}
+                  className="w-full flex items-center justify-between px-4 py-3 text-left hover:bg-muted/30"
+                >
+                  <div className="flex items-center gap-3">
+                    {isExpanded ? <ChevronDown className="h-4 w-4 text-muted-foreground" /> : <ChevronRight className="h-4 w-4 text-muted-foreground" />}
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-semibold text-foreground">{pl.name}</span>
+                        {pl.is_active && <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-semibold text-primary">Active</span>}
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        Effective {format(new Date(pl.effective_date), "dd MMM yyyy")} · Created by {pl.creator?.name || "—"}
+                      </p>
+                    </div>
+                  </div>
+                  <span className="text-xs text-muted-foreground">{products.length} products</span>
+                </button>
+                {isExpanded && (
+                  <div className="border-t border-border overflow-x-auto">
+                    <table className="w-full">
+                      <thead>
+                        <tr className="border-b border-border bg-muted/30 text-left">
+                          <th className="px-4 py-2 text-xs font-semibold uppercase text-muted-foreground">Product</th>
+                          <th className="px-4 py-2 text-xs font-semibold uppercase text-muted-foreground">Brand</th>
+                          <th className="px-4 py-2 text-xs font-semibold uppercase text-muted-foreground text-right">Dealer ₹</th>
+                          <th className="px-4 py-2 text-xs font-semibold uppercase text-muted-foreground text-right">Retailer ₹</th>
+                          <th className="px-4 py-2 text-xs font-semibold uppercase text-muted-foreground text-right">Walk-in ₹</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {rows.map((r) => (
+                          <tr key={r.product.id} className="border-b border-border last:border-0">
+                            <td className="px-4 py-2 text-sm text-foreground">{r.product.name}</td>
+                            <td className="px-4 py-2 text-sm text-muted-foreground">{r.product.brand?.name || "—"}</td>
+                            <td className="px-4 py-2 text-sm text-right">{r.dealer > 0 ? `₹${r.dealer}` : "—"}</td>
+                            <td className="px-4 py-2 text-sm text-right">{r.retailer > 0 ? `₹${r.retailer}` : "—"}</td>
+                            <td className="px-4 py-2 text-sm text-right">{r.walkin > 0 ? `₹${r.walkin}` : "—"}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </TabsContent>
+      </Tabs>
 
       {/* Create Price List Modal */}
       <Dialog open={createOpen} onOpenChange={setCreateOpen}>
@@ -328,27 +395,21 @@ export default function PriceList() {
                     </Button>
                   </PopoverTrigger>
                   <PopoverContent className="w-auto p-0" align="start">
-                    <Calendar
-                      mode="single"
-                      selected={effectiveDate}
-                      onSelect={(d) => d && setEffectiveDate(d)}
-                      initialFocus
-                      className="p-3 pointer-events-auto"
-                    />
+                    <Calendar mode="single" selected={effectiveDate} onSelect={(d) => d && setEffectiveDate(d)} initialFocus className="p-3 pointer-events-auto" />
                   </PopoverContent>
                 </Popover>
               </div>
             </div>
 
-            {/* Editable prices table */}
             <div className="rounded-lg border border-border overflow-hidden">
               <table className="w-full">
                 <thead>
                   <tr className="border-b border-border bg-muted/50 text-left">
                     <th className="px-4 py-2 text-xs font-semibold uppercase text-muted-foreground">Product</th>
                     <th className="px-4 py-2 text-xs font-semibold uppercase text-muted-foreground">Brand</th>
-                     <th className="px-4 py-2 text-xs font-semibold uppercase text-muted-foreground">Dealer ₹</th>
-                     <th className="px-4 py-2 text-xs font-semibold uppercase text-muted-foreground">Retailer ₹</th>
+                    <th className="px-4 py-2 text-xs font-semibold uppercase text-muted-foreground">Dealer ₹</th>
+                    <th className="px-4 py-2 text-xs font-semibold uppercase text-muted-foreground">Retailer ₹</th>
+                    <th className="px-4 py-2 text-xs font-semibold uppercase text-muted-foreground">Walk-in ₹</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -357,20 +418,13 @@ export default function PriceList() {
                       <td className="px-4 py-2 text-sm font-medium text-foreground">{p.name}</td>
                       <td className="px-4 py-2 text-sm text-muted-foreground">{p.brand?.name || "—"}</td>
                       <td className="px-2 py-1">
-                        <Input
-                          type="number"
-                          className="h-8 w-24"
-                          value={editPrices[p.id]?.dealer ?? "0"}
-                          onChange={(e) => setEditPrices((prev) => ({ ...prev, [p.id]: { ...prev[p.id], dealer: e.target.value } }))}
-                        />
+                        <Input type="number" className="h-8 w-24" value={editPrices[p.id]?.dealer ?? "0"} onChange={(e) => setEditPrices(prev => ({ ...prev, [p.id]: { ...prev[p.id], dealer: e.target.value } }))} />
                       </td>
                       <td className="px-2 py-1">
-                        <Input
-                          type="number"
-                          className="h-8 w-24"
-                          value={editPrices[p.id]?.retailer ?? "0"}
-                          onChange={(e) => setEditPrices((prev) => ({ ...prev, [p.id]: { ...prev[p.id], retailer: e.target.value } }))}
-                        />
+                        <Input type="number" className="h-8 w-24" value={editPrices[p.id]?.retailer ?? "0"} onChange={(e) => setEditPrices(prev => ({ ...prev, [p.id]: { ...prev[p.id], retailer: e.target.value } }))} />
+                      </td>
+                      <td className="px-2 py-1">
+                        <Input type="number" className="h-8 w-24" value={editPrices[p.id]?.walkin ?? "0"} onChange={(e) => setEditPrices(prev => ({ ...prev, [p.id]: { ...prev[p.id], walkin: e.target.value } }))} />
                       </td>
                     </tr>
                   ))}
@@ -384,39 +438,6 @@ export default function PriceList() {
               {savePriceList.isPending ? "Saving..." : "Save & Activate"}
             </Button>
           </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* History Modal */}
-      <Dialog open={historyOpen} onOpenChange={setHistoryOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Price List History</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-2 max-h-80 overflow-y-auto">
-            {allPriceLists.map((pl) => (
-              <div
-                key={pl.id}
-                className={cn(
-                  "flex items-center justify-between rounded-md border px-4 py-3",
-                  pl.is_active ? "border-primary bg-primary/5" : "border-border"
-                )}
-              >
-                <div>
-                  <p className="text-sm font-medium text-foreground">{pl.name}</p>
-                  <p className="text-xs text-muted-foreground">Effective: {format(new Date(pl.effective_date), "dd MMM yyyy")}</p>
-                </div>
-                {pl.is_active && (
-                  <span className="inline-flex items-center rounded-full bg-primary/10 px-2.5 py-0.5 text-xs font-semibold text-primary">
-                    Active
-                  </span>
-                )}
-              </div>
-            ))}
-            {allPriceLists.length === 0 && (
-              <p className="text-center text-sm text-muted-foreground py-4">No price lists yet.</p>
-            )}
-          </div>
         </DialogContent>
       </Dialog>
     </div>
