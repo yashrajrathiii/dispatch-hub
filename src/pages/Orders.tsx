@@ -246,7 +246,7 @@ export default function Orders() {
               product_id: item.product_id,
               change_type: "SOLD" as any,
               quantity_change: -allocQty,
-              note: `Order ${order.id.slice(0, 8)}`,
+              note: `Auto-deducted from Order #${order.id.slice(0, 8)}`,
               created_by_user_id: appUser.id,
             });
           }
