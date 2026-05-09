@@ -387,6 +387,7 @@ export type Database = {
       }
       orders: {
         Row: {
+          amount_paid: number
           buyer_id: string
           channel: Database["public"]["Enums"]["order_channel"]
           created_at: string
@@ -395,11 +396,14 @@ export type Database = {
           delivery_slot: Database["public"]["Enums"]["delivery_slot"] | null
           id: string
           notes: string | null
+          notes_photo_url: string | null
           payment_status: Database["public"]["Enums"]["payment_status"]
           shop_id: string | null
           status: Database["public"]["Enums"]["order_status"]
+          total_amount: number
         }
         Insert: {
+          amount_paid?: number
           buyer_id: string
           channel?: Database["public"]["Enums"]["order_channel"]
           created_at?: string
@@ -408,11 +412,14 @@ export type Database = {
           delivery_slot?: Database["public"]["Enums"]["delivery_slot"] | null
           id?: string
           notes?: string | null
+          notes_photo_url?: string | null
           payment_status?: Database["public"]["Enums"]["payment_status"]
           shop_id?: string | null
           status?: Database["public"]["Enums"]["order_status"]
+          total_amount?: number
         }
         Update: {
+          amount_paid?: number
           buyer_id?: string
           channel?: Database["public"]["Enums"]["order_channel"]
           created_at?: string
@@ -421,9 +428,11 @@ export type Database = {
           delivery_slot?: Database["public"]["Enums"]["delivery_slot"] | null
           id?: string
           notes?: string | null
+          notes_photo_url?: string | null
           payment_status?: Database["public"]["Enums"]["payment_status"]
           shop_id?: string | null
           status?: Database["public"]["Enums"]["order_status"]
+          total_amount?: number
         }
         Relationships: [
           {
@@ -731,6 +740,7 @@ export type Database = {
           created_at: string
           created_by_user_id: string | null
           id: string
+          notes: string | null
           photo_proof_url: string | null
           shop_id: string | null
           total_amount: number
@@ -743,6 +753,7 @@ export type Database = {
           created_at?: string
           created_by_user_id?: string | null
           id?: string
+          notes?: string | null
           photo_proof_url?: string | null
           shop_id?: string | null
           total_amount?: number
@@ -755,6 +766,7 @@ export type Database = {
           created_at?: string
           created_by_user_id?: string | null
           id?: string
+          notes?: string | null
           photo_proof_url?: string | null
           shop_id?: string | null
           total_amount?: number
@@ -806,6 +818,7 @@ export type Database = {
         | "DISPATCHED"
         | "DELIVERED"
         | "CANCELLED"
+        | "PICKED_UP"
       payment_status: "PENDING" | "PARTIAL" | "PAID"
       product_category: "Dhuli" | "Dryfruits" | "Oil" | "Other"
       shop_type: "GODOWN" | "SHOP"
@@ -952,6 +965,7 @@ export const Constants = {
         "DISPATCHED",
         "DELIVERED",
         "CANCELLED",
+        "PICKED_UP",
       ],
       payment_status: ["PENDING", "PARTIAL", "PAID"],
       product_category: ["Dhuli", "Dryfruits", "Oil", "Other"],
