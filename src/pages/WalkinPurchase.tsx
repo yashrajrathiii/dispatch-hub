@@ -146,8 +146,10 @@ export default function WalkinPurchase() {
     setBuyerSearch("");
     setNewBuyer({ name: "", phone: "", category: "WALKIN" });
     setItems([{ product_id: "", quantity: "", unit_price: "" }]);
+    setProductSearches([""]);
     setPhotoFile(null);
     setPhotoPreview(null);
+    setPurchaseNote("");
   };
 
   const submitPurchase = useMutation({
