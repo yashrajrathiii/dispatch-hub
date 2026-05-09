@@ -80,11 +80,15 @@ export default function WalkinPurchase() {
     return price ? String(price.price_per_unit) : "";
   };
 
-  const addItemRow = () => setItems([...items, { product_id: "", quantity: "", unit_price: "" }]);
+  const addItemRow = () => {
+    setItems([...items, { product_id: "", quantity: "", unit_price: "" }]);
+    setProductSearches([...productSearches, ""]);
+  };
 
   const removeItemRow = (idx: number) => {
     if (items.length <= 1) return;
     setItems(items.filter((_, i) => i !== idx));
+    setProductSearches(productSearches.filter((_, i) => i !== idx));
   };
 
   const updateItem = (idx: number, field: keyof ItemRow, value: string) => {
@@ -95,6 +99,24 @@ export default function WalkinPurchase() {
       if (autoPrice) updated[idx].unit_price = autoPrice;
     }
     setItems(updated);
+  };
+
+  const updateProductSearch = (idx: number, search: string) => {
+    const next = [...productSearches];
+    next[idx] = search;
+    setProductSearches(next);
+    if (!search) {
+      const updated = [...items];
+      updated[idx] = { ...updated[idx], product_id: "" };
+      setItems(updated);
+    }
+  };
+
+  const selectProduct = (idx: number, product: any) => {
+    const next = [...productSearches];
+    next[idx] = product.name;
+    setProductSearches(next);
+    updateItem(idx, "product_id", product.id);
   };
 
   const runningTotal = useMemo(() => {
