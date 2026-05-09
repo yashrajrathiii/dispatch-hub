@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -12,13 +12,12 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sh
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 import { Switch } from "@/components/ui/switch";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import StatusBadge from "@/components/StatusBadge";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
-import { CalendarIcon, Plus, Eye, X, Check, AlertTriangle, Trash2 } from "lucide-react";
-
-type OrderStatus = "PENDING" | "CONFIRMED" | "DISPATCHED" | "DELIVERED" | "CANCELLED";
-type PaymentStatus = "PENDING" | "PARTIAL" | "PAID";
+import { CalendarIcon, Plus, MoreHorizontal, Trash2, Camera, X, Pencil, Check } from "lucide-react";
 
 const statusToBadge: Record<string, any> = {
   PENDING: "pending",
@@ -26,6 +25,7 @@ const statusToBadge: Record<string, any> = {
   DISPATCHED: "dispatched",
   DELIVERED: "delivered",
   CANCELLED: "cancelled",
+  PICKED_UP: "picked_up",
 };
 const paymentToBadge: Record<string, any> = {
   PENDING: "pending",
@@ -43,16 +43,19 @@ export default function Orders() {
   const [shopFilter, setShopFilter] = useState<string>("all");
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [step, setStep] = useState(1);
+  const [deleteId, setDeleteId] = useState<string | null>(null);
 
   // Create order state
   const [isNewBuyer, setIsNewBuyer] = useState(false);
   const [selectedBuyerId, setSelectedBuyerId] = useState("");
+  const [buyerSearch, setBuyerSearch] = useState("");
   const [newBuyer, setNewBuyer] = useState({ name: "", phone: "", email: "", category: "RETAILER" as "DEALER" | "RETAILER" | "WALKIN" });
   const [orderShopId, setOrderShopId] = useState("");
-  const [deliveryDate, setDeliveryDate] = useState<Date>(new Date());
-  const [deliverySlot, setDeliverySlot] = useState<string>("MORNING");
-  const [orderItems, setOrderItems] = useState<Array<{ product_id: string; qty: string; unit_price: number; available: number | null }>>([]);
+  const [deliveryDate, setDeliveryDate] = useState<Date | undefined>(undefined);
+  const [orderItems, setOrderItems] = useState<Array<{ product_id: string; product_search: string; qty: string; unit_price: number; available: number | null; price_editable: boolean }>>([]);
   const [orderNotes, setOrderNotes] = useState("");
+  const [notesPhotoFile, setNotesPhotoFile] = useState<File | null>(null);
+  const [notesPhotoPreview, setNotesPhotoPreview] = useState<string | null>(null);
 
   // Data queries
   const { data: orders = [], isLoading } = useQuery({
@@ -74,6 +77,8 @@ export default function Orders() {
       return data || [];
     },
   });
+
+  const godowns = shops.filter((s: any) => s.type === "GODOWN");
 
   const { data: buyers = [] } = useQuery({
     queryKey: ["buyers-active"],
@@ -143,19 +148,31 @@ export default function Orders() {
   };
 
   const addItemRow = () => {
-    setOrderItems([...orderItems, { product_id: "", qty: "1", unit_price: 0, available: null }]);
+    setOrderItems([...orderItems, { product_id: "", product_search: "", qty: "1", unit_price: 0, available: null, price_editable: false }]);
   };
 
-  const updateItemProduct = (idx: number, productId: string) => {
-    const price = getPrice(productId);
-    const avail = getAvailable(productId);
+  const selectProduct = (idx: number, product: any) => {
+    const price = getPrice(product.id);
+    const avail = getAvailable(product.id);
     setOrderItems((items) =>
-      items.map((item, i) => (i === idx ? { ...item, product_id: productId, unit_price: price, available: avail } : item))
+      items.map((item, i) => (i === idx ? { ...item, product_id: product.id, product_search: product.name, unit_price: price, available: avail, price_editable: false } : item))
     );
+  };
+
+  const updateItemSearch = (idx: number, search: string) => {
+    setOrderItems((items) => items.map((item, i) => (i === idx ? { ...item, product_search: search, product_id: search ? item.product_id : "", available: search ? item.available : null } : item)));
   };
 
   const updateItemQty = (idx: number, qty: string) => {
     setOrderItems((items) => items.map((item, i) => (i === idx ? { ...item, qty } : item)));
+  };
+
+  const updateItemPrice = (idx: number, price: number) => {
+    setOrderItems((items) => items.map((item, i) => (i === idx ? { ...item, unit_price: price } : item)));
+  };
+
+  const togglePriceEdit = (idx: number) => {
+    setOrderItems((items) => items.map((item, i) => (i === idx ? { ...item, price_editable: !item.price_editable } : item)));
   };
 
   const removeItem = (idx: number) => {
@@ -164,16 +181,32 @@ export default function Orders() {
 
   const runningTotal = orderItems.reduce((sum, item) => sum + Number(item.qty) * item.unit_price, 0);
 
+  const filteredBuyers = useMemo(() => {
+    if (!buyerSearch) return [];
+    const q = buyerSearch.toLowerCase();
+    return buyers.filter((b: any) => b.name.toLowerCase().includes(q) || (b.phone && b.phone.includes(buyerSearch))).slice(0, 8);
+  }, [buyers, buyerSearch]);
+
+  const handleNotesPhoto = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setNotesPhotoFile(file);
+      setNotesPhotoPreview(URL.createObjectURL(file));
+    }
+  };
+
   const resetDrawer = () => {
     setStep(1);
     setIsNewBuyer(false);
     setSelectedBuyerId("");
+    setBuyerSearch("");
     setNewBuyer({ name: "", phone: "", email: "", category: "RETAILER" });
     setOrderShopId("");
-    setDeliveryDate(new Date());
-    setDeliverySlot("MORNING");
+    setDeliveryDate(undefined);
     setOrderItems([]);
     setOrderNotes("");
+    setNotesPhotoFile(null);
+    setNotesPhotoPreview(null);
   };
 
   const createOrder = useMutation({
@@ -182,7 +215,6 @@ export default function Orders() {
 
       let buyerId = selectedBuyerId;
 
-      // Create new buyer if needed
       if (isNewBuyer) {
         const { data: nb, error: nbErr } = await supabase
           .from("buyers")
@@ -198,25 +230,38 @@ export default function Orders() {
         buyerId = nb.id;
       }
 
-      // Create order
+      // Upload notes photo if exists
+      let photoUrl: string | null = null;
+      if (notesPhotoFile) {
+        const ext = notesPhotoFile.name.split(".").pop();
+        const path = `order-${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+        const { error: uploadErr } = await supabase.storage.from("walkin-proofs").upload(path, notesPhotoFile);
+        if (!uploadErr) {
+          const { data: urlData } = supabase.storage.from("walkin-proofs").getPublicUrl(path);
+          photoUrl = urlData.publicUrl;
+        }
+      }
+
+      const total = runningTotal;
+
       const { data: order, error: orderErr } = await supabase
         .from("orders")
         .insert({
           buyer_id: buyerId,
           shop_id: orderShopId || null,
-          delivery_date: format(deliveryDate, "yyyy-MM-dd"),
-          delivery_slot: deliverySlot as any,
+          delivery_date: deliveryDate ? format(deliveryDate, "yyyy-MM-dd") : null,
           status: "PENDING" as any,
           payment_status: "PENDING" as any,
           channel: "MANUAL" as any,
           created_by_user_id: appUser.id,
           notes: orderNotes || null,
+          notes_photo_url: photoUrl,
+          total_amount: total,
         })
         .select()
         .single();
       if (orderErr) throw orderErr;
 
-      // Create order items & update inventory
       for (const item of orderItems) {
         if (!item.product_id || Number(item.qty) <= 0) continue;
         const reqQty = Number(item.qty);
@@ -231,36 +276,41 @@ export default function Orders() {
           unit_price: item.unit_price,
           line_total: reqQty * item.unit_price,
         });
-
-        // Deduct from inventory
-        if (allocQty > 0 && orderShopId) {
-          const inv = inventoryData.find((i: any) => i.product_id === item.product_id);
-          if (inv) {
-            await supabase
-              .from("inventory")
-              .update({ quantity: Number(inv.quantity) - allocQty, last_updated_at: new Date().toISOString(), updated_by_user_id: appUser.id })
-              .eq("id", inv.id);
-
-            await supabase.from("inventory_logs").insert({
-              shop_id: orderShopId,
-              product_id: item.product_id,
-              change_type: "SOLD" as any,
-              quantity_change: -allocQty,
-              note: `Auto-deducted from Order #${order.id.slice(0, 8)}`,
-              created_by_user_id: appUser.id,
-            });
-          }
-        }
       }
 
       return order;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["orders"] });
-      queryClient.invalidateQueries({ queryKey: ["inventory"] });
       setDrawerOpen(false);
       resetDrawer();
       toast({ title: "Order created successfully" });
+    },
+    onError: (err: any) => toast({ title: "Error", description: err.message, variant: "destructive" }),
+  });
+
+  const quickStatus = useMutation({
+    mutationFn: async ({ id, status }: { id: string; status: string }) => {
+      const { error } = await supabase.from("orders").update({ status: status as any }).eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: (_d, vars) => {
+      queryClient.invalidateQueries({ queryKey: ["orders"] });
+      toast({ title: vars.status === "DELIVERED" ? "Order marked as delivered." : "Order marked as picked up." });
+    },
+    onError: (err: any) => toast({ title: "Error", description: err.message, variant: "destructive" }),
+  });
+
+  const deleteOrder = useMutation({
+    mutationFn: async (id: string) => {
+      await supabase.from("order_items").delete().eq("order_id", id);
+      const { error } = await supabase.from("orders").delete().eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["orders"] });
+      setDeleteId(null);
+      toast({ title: "Order deleted." });
     },
     onError: (err: any) => toast({ title: "Error", description: err.message, variant: "destructive" }),
   });
@@ -270,23 +320,24 @@ export default function Orders() {
   return (
     <div className="space-y-6">
       {/* Filters */}
-      <div className="flex flex-wrap items-center gap-3">
+      <div className="flex flex-wrap items-center gap-3 border-b border-gray-200 pb-4">
         <Select value={statusFilter} onValueChange={setStatusFilter}>
-          <SelectTrigger className="w-40"><SelectValue placeholder="All Statuses" /></SelectTrigger>
+          <SelectTrigger className="w-40 border-gray-300"><SelectValue placeholder="All Statuses" /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All Statuses</SelectItem>
             <SelectItem value="PENDING">Pending</SelectItem>
             <SelectItem value="CONFIRMED">Confirmed</SelectItem>
             <SelectItem value="DISPATCHED">Dispatched</SelectItem>
             <SelectItem value="DELIVERED">Delivered</SelectItem>
+            <SelectItem value="PICKED_UP">Picked Up</SelectItem>
             <SelectItem value="CANCELLED">Cancelled</SelectItem>
           </SelectContent>
         </Select>
         <Select value={shopFilter} onValueChange={setShopFilter}>
-          <SelectTrigger className="w-48"><SelectValue placeholder="All Shops" /></SelectTrigger>
+          <SelectTrigger className="w-48 border-gray-300"><SelectValue placeholder="All Godowns" /></SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">All Shops</SelectItem>
-            {shops.map((s: any) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
+            <SelectItem value="all">All Godowns</SelectItem>
+            {godowns.map((s: any) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
           </SelectContent>
         </Select>
         {canCreate && (
@@ -297,7 +348,7 @@ export default function Orders() {
       </div>
 
       {/* Orders table */}
-      <div className="rounded-lg border border-border bg-card shadow-sm overflow-x-auto">
+      <div className="rounded-lg border border-gray-200 bg-card shadow-sm overflow-x-auto">
         {isLoading ? (
           <div className="flex items-center justify-center py-12">
             <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
@@ -307,55 +358,83 @@ export default function Orders() {
         ) : (
           <table className="w-full">
             <thead>
-              <tr className="border-b border-border text-left">
+              <tr className="border-b border-gray-200 text-left">
                 <th className="px-4 py-3 text-xs font-semibold uppercase text-muted-foreground">Order #</th>
                 <th className="px-4 py-3 text-xs font-semibold uppercase text-muted-foreground">Buyer</th>
                 <th className="px-4 py-3 text-xs font-semibold uppercase text-muted-foreground">Category</th>
-                <th className="px-4 py-3 text-xs font-semibold uppercase text-muted-foreground">Shop</th>
-                <th className="px-4 py-3 text-xs font-semibold uppercase text-muted-foreground">Delivery</th>
-                <th className="px-4 py-3 text-xs font-semibold uppercase text-muted-foreground">Slot</th>
+                <th className="px-4 py-3 text-xs font-semibold uppercase text-muted-foreground">Godown</th>
                 <th className="px-4 py-3 text-xs font-semibold uppercase text-muted-foreground">Status</th>
                 <th className="px-4 py-3 text-xs font-semibold uppercase text-muted-foreground">Payment</th>
                 <th className="px-4 py-3 text-xs font-semibold uppercase text-muted-foreground">Created</th>
-                <th className="px-4 py-3 text-xs font-semibold uppercase text-muted-foreground">Actions</th>
+                <th className="px-4 py-3 text-xs font-semibold uppercase text-muted-foreground text-right">Actions</th>
               </tr>
             </thead>
             <tbody>
-              {filtered.map((order: any) => (
-                <tr key={order.id} className="border-b border-border last:border-0">
-                  <td className="px-4 py-3 text-sm font-mono font-medium text-foreground">#{order.id.slice(0, 8)}</td>
-                  <td className="px-4 py-3 text-sm text-foreground">{order.buyer?.name || "—"}</td>
-                  <td className="px-4 py-3 text-sm text-muted-foreground">{order.buyer?.category || "—"}</td>
-                  <td className="px-4 py-3 text-sm text-muted-foreground">{order.shop?.name || "—"}</td>
-                  <td className="px-4 py-3 text-sm text-muted-foreground">
-                    {order.delivery_date ? format(new Date(order.delivery_date), "dd MMM") : "—"}
-                  </td>
-                  <td className="px-4 py-3 text-sm text-muted-foreground">{order.delivery_slot || "—"}</td>
-                  <td className="px-4 py-3"><StatusBadge status={statusToBadge[order.status] || "pending"} /></td>
-                  <td className="px-4 py-3"><StatusBadge status={paymentToBadge[order.payment_status] || "pending"} /></td>
-                  <td className="px-4 py-3 text-sm text-muted-foreground">
-                    {format(new Date(order.created_at), "dd MMM")}
-                  </td>
-                  <td className="px-4 py-3">
-                    <Button size="sm" variant="ghost" onClick={() => navigate(`/orders/${order.id}`)} className="gap-1">
-                      <Eye className="h-4 w-4" /> View
-                    </Button>
-                  </td>
-                </tr>
-              ))}
+              {filtered.map((order: any) => {
+                const godownName = order.shop?.type === "GODOWN" ? order.shop?.name : (order.shop?.name || "—");
+                return (
+                  <tr key={order.id} className="border-b border-gray-200 last:border-0">
+                    <td className="px-4 py-3 text-sm font-mono font-medium text-foreground">#{order.id.slice(0, 8)}</td>
+                    <td className="px-4 py-3 text-sm text-foreground">{order.buyer?.name || "—"}</td>
+                    <td className="px-4 py-3 text-sm text-muted-foreground">{order.buyer?.category || "—"}</td>
+                    <td className="px-4 py-3 text-sm text-muted-foreground">{godownName}</td>
+                    <td className="px-4 py-3"><StatusBadge status={statusToBadge[order.status] || "pending"} /></td>
+                    <td className="px-4 py-3"><StatusBadge status={paymentToBadge[order.payment_status] || "pending"} /></td>
+                    <td className="px-4 py-3 text-sm text-muted-foreground">
+                      {format(new Date(order.created_at), "dd MMM")}
+                    </td>
+                    <td className="px-4 py-3 text-right">
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button size="icon" variant="ghost" className="h-8 w-8">
+                            <MoreHorizontal className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem onClick={() => navigate(`/orders/${order.id}`)}>View</DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => quickStatus.mutate({ id: order.id, status: "DELIVERED" })}>Mark as Delivered</DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => quickStatus.mutate({ id: order.id, status: "PICKED_UP" })}>Mark as Picked Up</DropdownMenuItem>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem className="text-destructive focus:text-destructive" onClick={() => setDeleteId(order.id)}>
+                            Delete Order
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         )}
       </div>
 
+      {/* Delete confirmation */}
+      <AlertDialog open={!!deleteId} onOpenChange={(o) => !o && setDeleteId(null)}>
+        <AlertDialogContent className="border border-gray-200">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Order</AlertDialogTitle>
+            <AlertDialogDescription>Are you sure you want to delete this order? This cannot be undone.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => deleteId && deleteOrder.mutate(deleteId)}
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       {/* Create Order Drawer */}
       <Sheet open={drawerOpen} onOpenChange={(o) => { if (!o) resetDrawer(); setDrawerOpen(o); }}>
-        <SheetContent className="w-full sm:max-w-lg overflow-y-auto">
+        <SheetContent className="w-full sm:max-w-lg overflow-y-auto border-l border-gray-200">
           <SheetHeader>
             <SheetTitle>Create Order — Step {step}/4</SheetTitle>
           </SheetHeader>
           <div className="mt-6 space-y-6">
-            {/* Step indicator */}
             <div className="flex gap-1">
               {[1, 2, 3, 4].map((s) => (
                 <div key={s} className={cn("h-1.5 flex-1 rounded-full", s <= step ? "bg-primary" : "bg-muted")} />
@@ -364,7 +443,7 @@ export default function Orders() {
 
             {step === 1 && (
               <div className="space-y-4">
-                <h3 className="text-sm font-semibold text-foreground">Step 1: Select Buyer</h3>
+                <h3 className="text-sm font-semibold text-foreground">Customer Details</h3>
                 <div className="flex items-center gap-2">
                   <Label>New Buyer?</Label>
                   <Switch checked={isNewBuyer} onCheckedChange={setIsNewBuyer} />
@@ -397,17 +476,25 @@ export default function Orders() {
                   </div>
                 ) : (
                   <div className="space-y-1">
-                    <Label>Select Buyer</Label>
-                    <Select value={selectedBuyerId} onValueChange={setSelectedBuyerId}>
-                      <SelectTrigger><SelectValue placeholder="Search buyer..." /></SelectTrigger>
-                      <SelectContent>
-                        {buyers.map((b: any) => (
-                          <SelectItem key={b.id} value={b.id}>
-                            {b.name} ({b.category})
-                          </SelectItem>
+                    <Label>Search Buyer</Label>
+                    <Input
+                      placeholder="Search by name or phone..."
+                      value={buyerSearch}
+                      onChange={(e) => { setBuyerSearch(e.target.value); setSelectedBuyerId(""); }}
+                    />
+                    {buyerSearch && filteredBuyers.length > 0 && !selectedBuyerId && (
+                      <div className="max-h-40 overflow-y-auto rounded-md border border-gray-200 bg-popover">
+                        {filteredBuyers.map((b: any) => (
+                          <button
+                            key={b.id}
+                            className="w-full text-left px-3 py-2 text-sm hover:bg-accent"
+                            onClick={() => { setSelectedBuyerId(b.id); setBuyerSearch(b.name); }}
+                          >
+                            {b.name} {b.phone && `· ${b.phone}`} <span className="text-muted-foreground">({b.category})</span>
+                          </button>
                         ))}
-                      </SelectContent>
-                    </Select>
+                      </div>
+                    )}
                     {selectedBuyerId && (
                       <p className="text-xs text-muted-foreground mt-1">
                         Category: {buyers.find((b: any) => b.id === selectedBuyerId)?.category}
@@ -427,30 +514,30 @@ export default function Orders() {
 
             {step === 2 && (
               <div className="space-y-4">
-                <h3 className="text-sm font-semibold text-foreground">Step 2: Delivery Details</h3>
+                <h3 className="text-sm font-semibold text-foreground">Delivery Details</h3>
                 <div className="space-y-1">
-                  <Label>Shop</Label>
+                  <Label>Godown</Label>
                   <Select value={orderShopId} onValueChange={setOrderShopId}>
-                    <SelectTrigger><SelectValue placeholder="Select shop" /></SelectTrigger>
+                    <SelectTrigger><SelectValue placeholder="Select godown" /></SelectTrigger>
                     <SelectContent>
-                      {shops.map((s: any) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
+                      {godowns.map((s: any) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
                     </SelectContent>
                   </Select>
                 </div>
                 <div className="space-y-1">
-                  <Label>Delivery Date</Label>
+                  <Label>Delivery Date (optional)</Label>
                   <Popover>
                     <PopoverTrigger asChild>
-                      <Button variant="outline" className="w-full justify-start text-left font-normal">
+                      <Button variant="outline" className="w-full justify-start text-left font-normal border-gray-300">
                         <CalendarIcon className="mr-2 h-4 w-4" />
-                        {format(deliveryDate, "PPP")}
+                        {deliveryDate ? format(deliveryDate, "PPP") : "Pick a date"}
                       </Button>
                     </PopoverTrigger>
                     <PopoverContent className="w-auto p-0" align="start">
                       <Calendar
                         mode="single"
                         selected={deliveryDate}
-                        onSelect={(d) => d && setDeliveryDate(d)}
+                        onSelect={(d) => setDeliveryDate(d)}
                         disabled={(d) => d < new Date(new Date().setHours(0, 0, 0, 0))}
                         initialFocus
                         className="p-3 pointer-events-auto"
@@ -458,91 +545,127 @@ export default function Orders() {
                     </PopoverContent>
                   </Popover>
                 </div>
-                <div className="space-y-1">
-                  <Label>Slot</Label>
-                  <Select value={deliverySlot} onValueChange={setDeliverySlot}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="MORNING">Morning</SelectItem>
-                      <SelectItem value="AFTERNOON">Afternoon</SelectItem>
-                      <SelectItem value="EVENING">Evening</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-1">
-                  <Label>Notes</Label>
-                  <Input value={orderNotes} onChange={(e) => setOrderNotes(e.target.value)} placeholder="Optional notes..." />
+                <div className="space-y-3">
+                  <h4 className="text-xs font-semibold uppercase text-muted-foreground">Notes & Proof</h4>
+                  <div className="space-y-1">
+                    <Label>Note</Label>
+                    <Input value={orderNotes} onChange={(e) => setOrderNotes(e.target.value)} placeholder="Add delivery notes..." />
+                  </div>
+                  <div className="space-y-1">
+                    <Label>Attach Photo (optional)</Label>
+                    {notesPhotoPreview ? (
+                      <div className="relative inline-block">
+                        <img src={notesPhotoPreview} alt="Proof" className="h-24 w-24 rounded-md object-cover border border-gray-200" />
+                        <button
+                          onClick={() => { setNotesPhotoFile(null); setNotesPhotoPreview(null); }}
+                          className="absolute -top-2 -right-2 rounded-full bg-destructive p-1 text-destructive-foreground"
+                          type="button"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      </div>
+                    ) : (
+                      <label className="flex h-20 w-32 cursor-pointer items-center justify-center gap-2 rounded-md border-2 border-dashed border-gray-300 text-muted-foreground hover:border-primary hover:text-primary">
+                        <Camera className="h-5 w-5" />
+                        <span className="text-xs">Attach</span>
+                        <input type="file" accept="image/jpeg,image/png" className="hidden" onChange={handleNotesPhoto} />
+                      </label>
+                    )}
+                  </div>
                 </div>
                 <div className="flex gap-2">
-                  <Button variant="outline" onClick={() => setStep(1)} className="flex-1">Back</Button>
-                  <Button onClick={() => setStep(3)} className="flex-1" disabled={!orderShopId}>Next: Products</Button>
+                  <Button variant="outline" onClick={() => setStep(1)} className="flex-1 border-gray-300">Back</Button>
+                  <Button onClick={() => setStep(3)} className="flex-1" disabled={!orderShopId}>Next: Add Items</Button>
                 </div>
               </div>
             )}
 
             {step === 3 && (
               <div className="space-y-4">
-                <h3 className="text-sm font-semibold text-foreground">Step 3: Add Products</h3>
+                <h3 className="text-sm font-semibold text-foreground">Add Items</h3>
                 {orderItems.map((item, idx) => {
                   const reqQty = Number(item.qty);
                   const avail = item.available;
-                  const isLow = avail !== null && avail < reqQty;
-                  const isSufficient = avail !== null && avail >= reqQty;
+                  const matches = item.product_search && !item.product_id
+                    ? products.filter((p: any) => p.name.toLowerCase().includes(item.product_search.toLowerCase())).slice(0, 6)
+                    : [];
                   return (
-                    <div key={idx} className="rounded-md border border-border p-3 space-y-2">
-                      <div className="flex items-center gap-2">
-                        <Select value={item.product_id} onValueChange={(v) => updateItemProduct(idx, v)}>
-                          <SelectTrigger className="flex-1"><SelectValue placeholder="Select product" /></SelectTrigger>
-                          <SelectContent>
-                            {products.map((p: any) => (
-                              <SelectItem key={p.id} value={p.id}>{p.name} ({p.sku})</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                    <div key={idx} className="rounded-md border border-gray-200 p-3 space-y-2">
+                      <div className="flex items-start gap-2">
+                        <div className="flex-1 space-y-1 relative">
+                          <Input
+                            placeholder="Search product..."
+                            value={item.product_search}
+                            onChange={(e) => updateItemSearch(idx, e.target.value)}
+                          />
+                          {matches.length > 0 && (
+                            <div className="absolute z-10 left-0 right-0 mt-1 max-h-40 overflow-y-auto rounded-md border border-gray-200 bg-popover shadow-md">
+                              {matches.map((p: any) => (
+                                <button
+                                  key={p.id}
+                                  type="button"
+                                  className="w-full text-left px-3 py-2 text-sm hover:bg-accent"
+                                  onClick={() => selectProduct(idx, p)}
+                                >
+                                  {p.name}
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                        </div>
                         <Button variant="ghost" size="icon" onClick={() => removeItem(idx)}>
                           <Trash2 className="h-4 w-4 text-destructive" />
                         </Button>
                       </div>
-                      <div className="flex items-center gap-3">
-                        <div className="space-y-1 w-24">
+                      <div className="flex items-center gap-3 flex-wrap">
+                        <div className="space-y-1 w-20">
                           <Label className="text-xs">Qty</Label>
                           <Input type="number" min="1" value={item.qty} onChange={(e) => updateItemQty(idx, e.target.value)} className="h-8" />
                         </div>
-                        <div className="space-y-1 w-24">
-                          <Label className="text-xs">Price ₹</Label>
-                          <Input value={item.unit_price} readOnly className="h-8 bg-muted" />
+                        <div className="space-y-1 w-28">
+                          <Label className="text-xs flex items-center gap-1">
+                            Price ₹
+                            <button type="button" onClick={() => togglePriceEdit(idx)}>
+                              <Pencil className="h-3 w-3 text-muted-foreground hover:text-primary" />
+                            </button>
+                          </Label>
+                          <Input
+                            type="number"
+                            value={item.unit_price}
+                            readOnly={!item.price_editable}
+                            onChange={(e) => updateItemPrice(idx, Number(e.target.value))}
+                            className={cn("h-8", !item.price_editable && "bg-muted")}
+                          />
                         </div>
                         <div className="space-y-1 w-24">
                           <Label className="text-xs">Total ₹</Label>
                           <Input value={(reqQty * item.unit_price).toFixed(2)} readOnly className="h-8 bg-muted" />
                         </div>
-                        <div className="flex items-center pt-5">
-                          {item.product_id && avail !== null && (
-                            isSufficient ? (
-                              <Check className="h-4 w-4 text-primary" />
-                            ) : (
-                              <div className="flex items-center gap-1">
-                                <AlertTriangle className="h-4 w-4 text-warning" />
-                                <span className="text-xs text-warning">Only {avail}</span>
-                              </div>
-                            )
+                        <div className="space-y-1 ml-auto">
+                          <Label className="text-xs">Available</Label>
+                          {item.product_id && avail !== null ? (
+                            <p className={cn("text-sm font-semibold pt-1", avail > 0 ? "text-success" : "text-destructive")}>
+                              {avail}
+                            </p>
+                          ) : (
+                            <p className="text-sm text-muted-foreground pt-1">—</p>
                           )}
                         </div>
                       </div>
                     </div>
                   );
                 })}
-                <Button variant="outline" onClick={addItemRow} className="w-full gap-2">
+                <Button variant="outline" onClick={addItemRow} className="w-full gap-2 border-gray-300">
                   <Plus className="h-4 w-4" /> Add Product
                 </Button>
-                <div className="flex justify-between items-center border-t border-border pt-3">
-                  <span className="text-sm font-medium text-muted-foreground">Running Total</span>
+                <div className="flex justify-between items-center border-t border-gray-200 pt-3">
+                  <span className="text-sm font-medium text-muted-foreground">Total</span>
                   <span className="text-lg font-bold text-foreground">₹{runningTotal.toFixed(2)}</span>
                 </div>
                 <div className="flex gap-2">
-                  <Button variant="outline" onClick={() => setStep(2)} className="flex-1">Back</Button>
+                  <Button variant="outline" onClick={() => setStep(2)} className="flex-1 border-gray-300">Back</Button>
                   <Button onClick={() => setStep(4)} className="flex-1" disabled={orderItems.length === 0 || orderItems.some((i) => !i.product_id)}>
-                    Next: Confirm
+                    Next: Summary
                   </Button>
                 </div>
               </div>
@@ -550,8 +673,8 @@ export default function Orders() {
 
             {step === 4 && (
               <div className="space-y-4">
-                <h3 className="text-sm font-semibold text-foreground">Step 4: Order Summary</h3>
-                <div className="rounded-md border border-border p-4 space-y-3">
+                <h3 className="text-sm font-semibold text-foreground">Summary</h3>
+                <div className="rounded-md border border-gray-200 p-4 space-y-3">
                   <div className="flex justify-between text-sm">
                     <span className="text-muted-foreground">Buyer</span>
                     <span className="font-medium text-foreground">
@@ -559,33 +682,29 @@ export default function Orders() {
                     </span>
                   </div>
                   <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">Shop</span>
-                    <span className="font-medium text-foreground">{shops.find((s: any) => s.id === orderShopId)?.name}</span>
+                    <span className="text-muted-foreground">Godown</span>
+                    <span className="font-medium text-foreground">{godowns.find((s: any) => s.id === orderShopId)?.name}</span>
                   </div>
-                  <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">Delivery</span>
-                    <span className="font-medium text-foreground">{format(deliveryDate, "dd MMM yyyy")} · {deliverySlot}</span>
-                  </div>
-                  <div className="border-t border-border pt-2">
+                  <div className="border-t border-gray-200 pt-2">
                     {orderItems.map((item, idx) => {
                       const prod = products.find((p: any) => p.id === item.product_id);
                       return (
                         <div key={idx} className="flex justify-between text-sm py-1">
-                          <span className="text-muted-foreground">{prod?.name || "—"} × {item.qty}</span>
+                          <span className="text-muted-foreground">{prod?.name || "—"} × {item.qty} @ ₹{item.unit_price}</span>
                           <span className="font-medium text-foreground">₹{(Number(item.qty) * item.unit_price).toFixed(2)}</span>
                         </div>
                       );
                     })}
                   </div>
-                  <div className="border-t border-border pt-2 flex justify-between">
+                  <div className="border-t border-gray-200 pt-2 flex justify-between">
                     <span className="font-semibold text-foreground">Total</span>
                     <span className="font-bold text-lg text-foreground">₹{runningTotal.toFixed(2)}</span>
                   </div>
                 </div>
                 <div className="flex gap-2">
-                  <Button variant="outline" onClick={() => setStep(3)} className="flex-1">Back</Button>
+                  <Button variant="outline" onClick={() => setStep(3)} className="flex-1 border-gray-300">Back</Button>
                   <Button onClick={() => createOrder.mutate()} className="flex-1" disabled={createOrder.isPending}>
-                    {createOrder.isPending ? "Creating..." : "Place Order"}
+                    {createOrder.isPending ? "Creating..." : "Confirm Order"}
                   </Button>
                 </div>
               </div>
