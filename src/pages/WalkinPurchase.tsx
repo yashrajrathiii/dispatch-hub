@@ -28,8 +28,10 @@ export default function WalkinPurchase() {
   const [buyerSearch, setBuyerSearch] = useState("");
   const [newBuyer, setNewBuyer] = useState({ name: "", phone: "", category: "WALKIN" as string });
   const [items, setItems] = useState<ItemRow[]>([{ product_id: "", quantity: "", unit_price: "" }]);
+  const [productSearches, setProductSearches] = useState<string[]>([""]);
   const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
+  const [purchaseNote, setPurchaseNote] = useState("");
 
   const { data: buyers = [] } = useQuery({
     queryKey: ["buyers"],
