@@ -203,8 +203,35 @@ export default function WalkinPurchase() {
         total_amount: total,
         bill_status: "PENDING" as any,
         photo_proof_url: photoUrl,
+        notes: purchaseNote || null,
       }).select("id").single();
       if (purchaseErr) throw purchaseErr;
+
+      // 3b. Create matching order in DELIVERED state
+      if (finalBuyerId) {
+        const { data: createdOrder, error: orderErr } = await supabase.from("orders").insert({
+          buyer_id: finalBuyerId,
+          shop_id: shopId,
+          channel: "WALKIN" as any,
+          status: "DELIVERED" as any,
+          payment_status: "PENDING" as any,
+          created_by_user_id: appUser.id,
+          notes: purchaseNote || null,
+          notes_photo_url: photoUrl,
+          total_amount: total,
+        }).select("id").single();
+        if (!orderErr && createdOrder) {
+          const orderItemsRows = validItems.map(i => ({
+            order_id: createdOrder.id,
+            product_id: i.product_id,
+            requested_qty: Number(i.quantity),
+            allocated_qty: Number(i.quantity),
+            unit_price: Number(i.unit_price),
+            line_total: Number(i.quantity) * Number(i.unit_price),
+          }));
+          await supabase.from("order_items").insert(orderItemsRows);
+        }
+      }
 
       // 4. Create walkin_items
       const walkinItems = validItems.map(i => ({
