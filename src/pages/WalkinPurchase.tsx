@@ -28,8 +28,10 @@ export default function WalkinPurchase() {
   const [buyerSearch, setBuyerSearch] = useState("");
   const [newBuyer, setNewBuyer] = useState({ name: "", phone: "", category: "WALKIN" as string });
   const [items, setItems] = useState<ItemRow[]>([{ product_id: "", quantity: "", unit_price: "" }]);
+  const [productSearches, setProductSearches] = useState<string[]>([""]);
   const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
+  const [purchaseNote, setPurchaseNote] = useState("");
 
   const { data: buyers = [] } = useQuery({
     queryKey: ["buyers"],
@@ -78,11 +80,15 @@ export default function WalkinPurchase() {
     return price ? String(price.price_per_unit) : "";
   };
 
-  const addItemRow = () => setItems([...items, { product_id: "", quantity: "", unit_price: "" }]);
+  const addItemRow = () => {
+    setItems([...items, { product_id: "", quantity: "", unit_price: "" }]);
+    setProductSearches([...productSearches, ""]);
+  };
 
   const removeItemRow = (idx: number) => {
     if (items.length <= 1) return;
     setItems(items.filter((_, i) => i !== idx));
+    setProductSearches(productSearches.filter((_, i) => i !== idx));
   };
 
   const updateItem = (idx: number, field: keyof ItemRow, value: string) => {
@@ -93,6 +99,24 @@ export default function WalkinPurchase() {
       if (autoPrice) updated[idx].unit_price = autoPrice;
     }
     setItems(updated);
+  };
+
+  const updateProductSearch = (idx: number, search: string) => {
+    const next = [...productSearches];
+    next[idx] = search;
+    setProductSearches(next);
+    if (!search) {
+      const updated = [...items];
+      updated[idx] = { ...updated[idx], product_id: "" };
+      setItems(updated);
+    }
+  };
+
+  const selectProduct = (idx: number, product: any) => {
+    const next = [...productSearches];
+    next[idx] = product.name;
+    setProductSearches(next);
+    updateItem(idx, "product_id", product.id);
   };
 
   const runningTotal = useMemo(() => {
@@ -122,8 +146,10 @@ export default function WalkinPurchase() {
     setBuyerSearch("");
     setNewBuyer({ name: "", phone: "", category: "WALKIN" });
     setItems([{ product_id: "", quantity: "", unit_price: "" }]);
+    setProductSearches([""]);
     setPhotoFile(null);
     setPhotoPreview(null);
+    setPurchaseNote("");
   };
 
   const submitPurchase = useMutation({
@@ -177,8 +203,35 @@ export default function WalkinPurchase() {
         total_amount: total,
         bill_status: "PENDING" as any,
         photo_proof_url: photoUrl,
+        notes: purchaseNote || null,
       }).select("id").single();
       if (purchaseErr) throw purchaseErr;
+
+      // 3b. Create matching order in DELIVERED state
+      if (finalBuyerId) {
+        const { data: createdOrder, error: orderErr } = await supabase.from("orders").insert({
+          buyer_id: finalBuyerId,
+          shop_id: shopId,
+          channel: "WALKIN" as any,
+          status: "DELIVERED" as any,
+          payment_status: "PENDING" as any,
+          created_by_user_id: appUser.id,
+          notes: purchaseNote || null,
+          notes_photo_url: photoUrl,
+          total_amount: total,
+        }).select("id").single();
+        if (!orderErr && createdOrder) {
+          const orderItemsRows = validItems.map(i => ({
+            order_id: createdOrder.id,
+            product_id: i.product_id,
+            requested_qty: Number(i.quantity),
+            allocated_qty: Number(i.quantity),
+            unit_price: Number(i.unit_price),
+            line_total: Number(i.quantity) * Number(i.unit_price),
+          }));
+          await supabase.from("order_items").insert(orderItemsRows);
+        }
+      }
 
       // 4. Create walkin_items
       const walkinItems = validItems.map(i => ({
@@ -331,34 +384,51 @@ export default function WalkinPurchase() {
             <div className="space-y-3">
               <h3 className="text-sm font-semibold text-foreground uppercase tracking-wide">Items Purchased</h3>
               <div className="space-y-2">
-                {items.map((item, idx) => (
-                  <div key={idx} className="grid grid-cols-[1fr_80px_100px_36px] gap-2 items-end">
-                    <div className="space-y-1">
-                      {idx === 0 && <Label className="text-xs">Product</Label>}
-                      <Select value={item.product_id} onValueChange={(v) => updateItem(idx, "product_id", v)}>
-                        <SelectTrigger><SelectValue placeholder="Select product" /></SelectTrigger>
-                        <SelectContent>
-                          {products.map((p: any) => (
-                            <SelectItem key={p.id} value={p.id}>{p.name} ({p.sku})</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                {items.map((item, idx) => {
+                  const search = productSearches[idx] || "";
+                  const matches = search && !item.product_id
+                    ? products.filter((p: any) => p.name.toLowerCase().includes(search.toLowerCase())).slice(0, 6)
+                    : [];
+                  return (
+                    <div key={idx} className="grid grid-cols-[1fr_80px_100px_36px] gap-2 items-end">
+                      <div className="space-y-1 relative">
+                        {idx === 0 && <Label className="text-xs">Product</Label>}
+                        <Input
+                          placeholder="Search product..."
+                          value={search}
+                          onChange={(e) => updateProductSearch(idx, e.target.value)}
+                        />
+                        {matches.length > 0 && (
+                          <div className="absolute z-20 left-0 right-0 mt-1 max-h-40 overflow-y-auto rounded-md border border-gray-200 bg-popover shadow-md">
+                            {matches.map((p: any) => (
+                              <button
+                                key={p.id}
+                                type="button"
+                                className="w-full text-left px-3 py-2 text-sm hover:bg-accent"
+                                onClick={() => selectProduct(idx, p)}
+                              >
+                                {p.name}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                      <div className="space-y-1">
+                        {idx === 0 && <Label className="text-xs">Qty</Label>}
+                        <Input type="number" value={item.quantity} onChange={(e) => updateItem(idx, "quantity", e.target.value)} placeholder="0" />
+                      </div>
+                      <div className="space-y-1">
+                        {idx === 0 && <Label className="text-xs">Unit ₹</Label>}
+                        <Input type="number" value={item.unit_price} onChange={(e) => updateItem(idx, "unit_price", e.target.value)} placeholder="0" />
+                      </div>
+                      <Button size="icon" variant="ghost" className="h-9 w-9" onClick={() => removeItemRow(idx)} disabled={items.length <= 1}>
+                        <Trash2 className="h-4 w-4 text-muted-foreground" />
+                      </Button>
                     </div>
-                    <div className="space-y-1">
-                      {idx === 0 && <Label className="text-xs">Qty</Label>}
-                      <Input type="number" value={item.quantity} onChange={(e) => updateItem(idx, "quantity", e.target.value)} placeholder="0" />
-                    </div>
-                    <div className="space-y-1">
-                      {idx === 0 && <Label className="text-xs">Unit ₹</Label>}
-                      <Input type="number" value={item.unit_price} onChange={(e) => updateItem(idx, "unit_price", e.target.value)} placeholder="0" />
-                    </div>
-                    <Button size="icon" variant="ghost" className="h-9 w-9" onClick={() => removeItemRow(idx)} disabled={items.length <= 1}>
-                      <Trash2 className="h-4 w-4 text-muted-foreground" />
-                    </Button>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
-              <Button variant="outline" size="sm" className="gap-1" onClick={addItemRow}>
+              <Button variant="outline" size="sm" className="gap-1 border-gray-300" onClick={addItemRow}>
                 <Plus className="h-3.5 w-3.5" /> Add Item
               </Button>
               <div className="text-right">
@@ -366,23 +436,34 @@ export default function WalkinPurchase() {
               </div>
             </div>
 
-            {/* Section 3 – Photo Proof */}
-            <div className="space-y-2">
-              <h3 className="text-sm font-semibold text-foreground uppercase tracking-wide">Photo Proof (Optional)</h3>
-              {photoPreview ? (
-                <div className="relative inline-block">
-                  <img src={photoPreview} alt="Proof" className="h-24 w-24 rounded-md object-cover border border-border" />
-                  <button onClick={removePhoto} className="absolute -top-2 -right-2 rounded-full bg-destructive p-1 text-destructive-foreground">
-                    <X className="h-3 w-3" />
-                  </button>
-                </div>
-              ) : (
-                <label className="flex h-24 w-40 cursor-pointer items-center justify-center gap-2 rounded-md border-2 border-dashed border-border text-muted-foreground hover:border-primary hover:text-primary transition-colors">
-                  <Camera className="h-5 w-5" />
-                  <span className="text-sm">Attach Photo</span>
-                  <input type="file" accept="image/jpeg,image/png" className="hidden" onChange={handlePhotoChange} />
-                </label>
-              )}
+            {/* Section 3 – Proof & Note */}
+            <div className="space-y-3">
+              <h3 className="text-sm font-semibold text-foreground uppercase tracking-wide">Proof & Note (Optional)</h3>
+              <div className="space-y-1">
+                <Label>Note</Label>
+                <Input
+                  value={purchaseNote}
+                  onChange={(e) => setPurchaseNote(e.target.value)}
+                  placeholder="Add any note about this purchase..."
+                />
+              </div>
+              <div className="space-y-1">
+                <Label>Attach Photo</Label>
+                {photoPreview ? (
+                  <div className="relative inline-block">
+                    <img src={photoPreview} alt="Proof" className="h-24 w-24 rounded-md object-cover border border-gray-200" />
+                    <button onClick={removePhoto} className="absolute -top-2 -right-2 rounded-full bg-destructive p-1 text-destructive-foreground">
+                      <X className="h-3 w-3" />
+                    </button>
+                  </div>
+                ) : (
+                  <label className="flex h-24 w-40 cursor-pointer items-center justify-center gap-2 rounded-md border-2 border-dashed border-gray-300 text-muted-foreground hover:border-primary hover:text-primary transition-colors">
+                    <Camera className="h-5 w-5" />
+                    <span className="text-sm">Attach Photo</span>
+                    <input type="file" accept="image/jpeg,image/png" className="hidden" onChange={handlePhotoChange} />
+                  </label>
+                )}
+              </div>
             </div>
           </div>
 

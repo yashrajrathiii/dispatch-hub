@@ -1,13 +1,18 @@
+import { useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import StatusBadge from "@/components/StatusBadge";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
-import { ArrowLeft, Check, Truck, Package, MapPin } from "lucide-react";
+import { ArrowLeft, Check, Truck, Package, MapPin, Trash2 } from "lucide-react";
 
 const STEPS = [
   { key: "PENDING", label: "Pending", icon: Package },
@@ -22,6 +27,7 @@ const statusToBadge: Record<string, any> = {
   DISPATCHED: "dispatched",
   DELIVERED: "delivered",
   CANCELLED: "cancelled",
+  PICKED_UP: "picked_up",
 };
 const paymentToBadge: Record<string, any> = {
   PENDING: "pending",
@@ -35,6 +41,9 @@ export default function OrderDetail() {
   const { appUser } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const [partialOpen, setPartialOpen] = useState(false);
+  const [partialAmount, setPartialAmount] = useState("");
+  const [deleteOpen, setDeleteOpen] = useState(false);
 
   const { data: order, isLoading } = useQuery({
     queryKey: ["order", id],
@@ -74,27 +83,105 @@ export default function OrderDetail() {
     },
   });
 
+  const total = items.reduce((sum: number, i: any) => sum + Number(i.line_total), 0);
+  const amountPaid = Number(order?.amount_paid || 0);
+  const remaining = Math.max(0, total - amountPaid);
+
+  const adjustInventory = async (direction: "deduct" | "restock") => {
+    if (!order || !order.shop_id || !appUser) return;
+    for (const item of items) {
+      const qty = Number(item.allocated_qty);
+      if (!qty) continue;
+      const { data: inv } = await supabase
+        .from("inventory")
+        .select("id, quantity")
+        .eq("shop_id", order.shop_id)
+        .eq("product_id", item.product_id)
+        .maybeSingle();
+      if (inv) {
+        const change = direction === "deduct" ? -qty : qty;
+        await supabase.from("inventory").update({
+          quantity: Number(inv.quantity) + change,
+          last_updated_at: new Date().toISOString(),
+          updated_by_user_id: appUser.id,
+        }).eq("id", inv.id);
+      }
+      await supabase.from("inventory_logs").insert({
+        shop_id: order.shop_id,
+        product_id: item.product_id,
+        change_type: (direction === "deduct" ? "SOLD" : "ADJUSTED") as any,
+        quantity_change: direction === "deduct" ? -qty : qty,
+        note: direction === "deduct"
+          ? `Deducted on Order Confirm #${order.id.slice(0, 8)}`
+          : `Restocked on Order Cancel #${order.id.slice(0, 8)}`,
+        created_by_user_id: appUser.id,
+      });
+    }
+  };
+
   const updateStatus = useMutation({
     mutationFn: async (newStatus: string) => {
+      const prev = order?.status;
       const { error } = await supabase.from("orders").update({ status: newStatus as any }).eq("id", id!);
       if (error) throw error;
+      if (newStatus === "CONFIRMED" && prev !== "CONFIRMED") {
+        await adjustInventory("deduct");
+      } else if (newStatus === "CANCELLED" && prev === "CONFIRMED") {
+        await adjustInventory("restock");
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["order", id] });
       queryClient.invalidateQueries({ queryKey: ["orders"] });
+      queryClient.invalidateQueries({ queryKey: ["inventory"] });
       toast({ title: "Status updated" });
     },
     onError: (err: any) => toast({ title: "Error", description: err.message, variant: "destructive" }),
   });
 
-  const updatePayment = useMutation({
-    mutationFn: async (paymentStatus: string) => {
-      const { error } = await supabase.from("orders").update({ payment_status: paymentStatus as any }).eq("id", id!);
+  const recordPayment = useMutation({
+    mutationFn: async (additionalAmount: number) => {
+      const newPaid = amountPaid + additionalAmount;
+      const newStatus = newPaid >= total ? "PAID" : "PARTIAL";
+      const { error } = await supabase
+        .from("orders")
+        .update({ amount_paid: newPaid, payment_status: newStatus as any })
+        .eq("id", id!);
       if (error) throw error;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["order", id] });
-      toast({ title: "Payment status updated" });
+      setPartialOpen(false);
+      setPartialAmount("");
+      toast({ title: "Payment updated" });
+    },
+    onError: (err: any) => toast({ title: "Error", description: err.message, variant: "destructive" }),
+  });
+
+  const markFullyPaid = useMutation({
+    mutationFn: async () => {
+      const { error } = await supabase
+        .from("orders")
+        .update({ amount_paid: total, payment_status: "PAID" as any })
+        .eq("id", id!);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["order", id] });
+      toast({ title: "Marked as paid" });
+    },
+  });
+
+  const deleteOrder = useMutation({
+    mutationFn: async () => {
+      await supabase.from("order_items").delete().eq("order_id", id!);
+      const { error } = await supabase.from("orders").delete().eq("id", id!);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["orders"] });
+      toast({ title: "Order deleted" });
+      navigate("/orders");
     },
     onError: (err: any) => toast({ title: "Error", description: err.message, variant: "destructive" }),
   });
@@ -114,7 +201,6 @@ export default function OrderDetail() {
   const currentStepIdx = STEPS.findIndex((s) => s.key === order.status);
   const isCancelled = order.status === "CANCELLED";
   const canAdvance = appUser?.role === "OWNER" || appUser?.role === "ADMIN" || appUser?.role === "STAFF";
-  const total = items.reduce((sum: number, i: any) => sum + Number(i.line_total), 0);
 
   return (
     <div className="space-y-6">
@@ -137,11 +223,10 @@ export default function OrderDetail() {
 
       {/* Status Timeline */}
       {!isCancelled && (
-        <div className="rounded-lg border border-border bg-card p-6 shadow-sm">
+        <div className="rounded-lg border border-gray-200 bg-card p-6 shadow-sm">
           <div className="flex items-center justify-between">
             {STEPS.map((step, idx) => {
               const isActive = idx <= currentStepIdx;
-              const isCurrent = idx === currentStepIdx;
               const Icon = step.icon;
               return (
                 <div key={step.key} className="flex flex-1 items-center">
@@ -149,7 +234,7 @@ export default function OrderDetail() {
                     <div
                       className={cn(
                         "flex h-10 w-10 items-center justify-center rounded-full border-2 transition-colors",
-                        isActive ? "border-primary bg-primary text-primary-foreground" : "border-border bg-card text-muted-foreground"
+                        isActive ? "border-primary bg-primary text-primary-foreground" : "border-gray-300 bg-card text-muted-foreground"
                       )}
                     >
                       <Icon className="h-5 w-5" />
@@ -157,7 +242,7 @@ export default function OrderDetail() {
                     <span className={cn("mt-2 text-xs font-medium", isActive ? "text-primary" : "text-muted-foreground")}>{step.label}</span>
                   </div>
                   {idx < STEPS.length - 1 && (
-                    <div className={cn("mx-2 h-0.5 flex-1", idx < currentStepIdx ? "bg-primary" : "bg-border")} />
+                    <div className={cn("mx-2 h-0.5 flex-1", idx < currentStepIdx ? "bg-primary" : "bg-gray-200")} />
                   )}
                 </div>
               );
@@ -195,33 +280,34 @@ export default function OrderDetail() {
 
       {/* Order info cards */}
       <div className="grid gap-4 sm:grid-cols-3">
-        <div className="rounded-lg border border-border bg-card p-4 space-y-2">
+        <div className="rounded-lg border border-gray-200 bg-card p-4 space-y-2">
           <p className="text-xs font-semibold uppercase text-muted-foreground">Buyer</p>
           <p className="text-sm font-medium text-foreground">{order.buyer?.name}</p>
+          <p className="text-[11px] text-muted-foreground font-mono">ID: {order.buyer?.id?.slice(0, 8)}</p>
           <p className="text-xs text-muted-foreground">{order.buyer?.category} · {order.buyer?.phone || "No phone"}</p>
         </div>
-        <div className="rounded-lg border border-border bg-card p-4 space-y-2">
+        <div className="rounded-lg border border-gray-200 bg-card p-4 space-y-2">
           <p className="text-xs font-semibold uppercase text-muted-foreground">Delivery</p>
           <p className="text-sm font-medium text-foreground">
             {order.delivery_date ? format(new Date(order.delivery_date), "dd MMM yyyy") : "Not set"}
           </p>
-          <p className="text-xs text-muted-foreground">{order.delivery_slot || "No slot"} · {order.shop?.name || "No shop"}</p>
+          <p className="text-xs text-muted-foreground">{order.shop?.name || "No godown"}</p>
         </div>
-        <div className="rounded-lg border border-border bg-card p-4 space-y-2">
+        <div className="rounded-lg border border-gray-200 bg-card p-4 space-y-2">
           <p className="text-xs font-semibold uppercase text-muted-foreground">Created By</p>
           <p className="text-sm font-medium text-foreground">{order.created_by?.name || "—"}</p>
           <p className="text-xs text-muted-foreground">Channel: {order.channel}</p>
         </div>
       </div>
 
-      {/* Items table */}
-      <div className="rounded-lg border border-border bg-card shadow-sm overflow-hidden">
-        <div className="border-b border-border bg-muted/50 px-4 py-2">
-          <h3 className="text-sm font-semibold text-foreground">Order Items</h3>
+      {/* Item List */}
+      <div className="rounded-lg border border-gray-200 bg-card shadow-sm overflow-hidden">
+        <div className="border-b border-gray-200 bg-muted/50 px-4 py-2">
+          <h3 className="text-sm font-semibold text-foreground">Item List</h3>
         </div>
         <table className="w-full">
           <thead>
-            <tr className="border-b border-border text-left">
+            <tr className="border-b border-gray-200 text-left">
               <th className="px-4 py-3 text-xs font-semibold uppercase text-muted-foreground">Product</th>
               <th className="px-4 py-3 text-xs font-semibold uppercase text-muted-foreground">Brand</th>
               <th className="px-4 py-3 text-xs font-semibold uppercase text-muted-foreground text-right">Requested</th>
@@ -232,7 +318,7 @@ export default function OrderDetail() {
           </thead>
           <tbody>
             {items.map((item: any) => (
-              <tr key={item.id} className="border-b border-border last:border-0">
+              <tr key={item.id} className="border-b border-gray-200 last:border-0">
                 <td className="px-4 py-3 text-sm font-medium text-foreground">{item.product?.name}</td>
                 <td className="px-4 py-3 text-sm text-muted-foreground">{item.product?.brand?.name || "—"}</td>
                 <td className="px-4 py-3 text-sm text-right text-foreground">{Number(item.requested_qty)}</td>
@@ -248,7 +334,7 @@ export default function OrderDetail() {
             ))}
           </tbody>
           <tfoot>
-            <tr className="border-t border-border bg-muted/30">
+            <tr className="border-t border-gray-200 bg-muted/30">
               <td colSpan={5} className="px-4 py-3 text-sm font-semibold text-foreground text-right">Grand Total</td>
               <td className="px-4 py-3 text-sm font-bold text-foreground text-right">₹{total}</td>
             </tr>
@@ -257,26 +343,28 @@ export default function OrderDetail() {
       </div>
 
       {/* Payment Section */}
-      <div className="rounded-lg border border-border bg-card p-4 shadow-sm">
-        <div className="flex items-center justify-between">
+      <div className="rounded-lg border border-gray-200 bg-card p-4 shadow-sm">
+        <div className="flex items-center justify-between flex-wrap gap-3">
           <div>
             <p className="text-xs font-semibold uppercase text-muted-foreground">Payment Status</p>
-            <div className="mt-1">
+            <div className="mt-1 flex items-center gap-2">
               <StatusBadge status={paymentToBadge[order.payment_status] || "pending"} />
+              {amountPaid > 0 && order.payment_status !== "PAID" && (
+                <span className="text-xs text-muted-foreground">Paid ₹{amountPaid}</span>
+              )}
             </div>
+            {order.payment_status === "PARTIAL" && remaining > 0 && (
+              <p className="mt-1 text-sm font-medium text-destructive">Partial — ₹{remaining} remaining</p>
+            )}
           </div>
-          {canAdvance && (
+          {canAdvance && order.payment_status !== "PAID" && (
             <div className="flex gap-2">
-              {order.payment_status !== "PARTIAL" && (
-                <Button size="sm" variant="outline" onClick={() => updatePayment.mutate("PARTIAL")} disabled={updatePayment.isPending}>
-                  Mark Partial
-                </Button>
-              )}
-              {order.payment_status !== "PAID" && (
-                <Button size="sm" onClick={() => updatePayment.mutate("PAID")} disabled={updatePayment.isPending}>
-                  Mark Paid
-                </Button>
-              )}
+              <Button size="sm" variant="outline" className="border-gray-300" onClick={() => { setPartialAmount(""); setPartialOpen(true); }}>
+                {order.payment_status === "PARTIAL" ? "Update Payment" : "Mark Partial"}
+              </Button>
+              <Button size="sm" onClick={() => markFullyPaid.mutate()} disabled={markFullyPaid.isPending}>
+                Mark Paid
+              </Button>
             </div>
           )}
         </div>
@@ -284,7 +372,7 @@ export default function OrderDetail() {
 
       {/* Dispatch Info */}
       {dispatch && (
-        <div className="rounded-lg border border-border bg-card p-4 shadow-sm">
+        <div className="rounded-lg border border-gray-200 bg-card p-4 shadow-sm">
           <p className="text-xs font-semibold uppercase text-muted-foreground mb-2">Dispatch Info</p>
           <div className="grid grid-cols-2 gap-4 text-sm">
             <div>
@@ -306,6 +394,67 @@ export default function OrderDetail() {
           </div>
         </div>
       )}
+
+      {/* Delete Order */}
+      {canAdvance && (
+        <div className="flex justify-end">
+          <Button variant="destructive" className="gap-2" onClick={() => setDeleteOpen(true)}>
+            <Trash2 className="h-4 w-4" /> Delete Order
+          </Button>
+        </div>
+      )}
+
+      {/* Partial Payment Dialog */}
+      <Dialog open={partialOpen} onOpenChange={setPartialOpen}>
+        <DialogContent className="border border-gray-200">
+          <DialogHeader>
+            <DialogTitle>Record Partial Payment</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="text-sm text-muted-foreground">
+              Total: ₹{total} · Already paid: ₹{amountPaid} · Remaining: ₹{remaining}
+            </div>
+            <div className="space-y-1">
+              <Label>Amount Paid (₹)</Label>
+              <Input
+                type="number"
+                min="0"
+                value={partialAmount}
+                onChange={(e) => setPartialAmount(e.target.value)}
+                placeholder="0"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" className="border-gray-300" onClick={() => setPartialOpen(false)}>Cancel</Button>
+            <Button
+              onClick={() => recordPayment.mutate(Number(partialAmount))}
+              disabled={!partialAmount || Number(partialAmount) <= 0 || recordPayment.isPending}
+            >
+              Save Payment
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirm */}
+      <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
+        <AlertDialogContent className="border border-gray-200">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Order</AlertDialogTitle>
+            <AlertDialogDescription>Are you sure you want to delete this order? This cannot be undone.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => deleteOrder.mutate()}
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

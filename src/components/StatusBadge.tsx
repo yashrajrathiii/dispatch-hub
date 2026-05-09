@@ -1,6 +1,6 @@
 import { cn } from "@/lib/utils";
 
-export type Status = "ok" | "confirmed" | "low" | "low_stock" | "pending" | "out_of_stock" | "cancelled" | "dispatched" | "delivered" | "partial" | "paid" | "planned" | "in_transit" | "completed";
+export type Status = "ok" | "confirmed" | "low" | "low_stock" | "pending" | "out_of_stock" | "cancelled" | "dispatched" | "delivered" | "partial" | "paid" | "planned" | "in_transit" | "completed" | "picked_up";
 
 const statusConfig: Record<Status, { label: string; className: string }> = {
   ok: { label: "OK", className: "bg-success/10 text-success" },
@@ -17,6 +17,7 @@ const statusConfig: Record<Status, { label: string; className: string }> = {
   planned: { label: "Planned", className: "bg-muted text-muted-foreground" },
   in_transit: { label: "In Transit", className: "bg-primary/10 text-primary" },
   completed: { label: "Completed", className: "bg-success/10 text-success" },
+  picked_up: { label: "Picked Up", className: "bg-success/10 text-success" },
 };
 
 interface Props {
