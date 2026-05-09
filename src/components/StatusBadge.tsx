@@ -1,6 +1,6 @@
 import { cn } from "@/lib/utils";
 
-export type Status = "ok" | "confirmed" | "low" | "low_stock" | "pending" | "out_of_stock" | "cancelled" | "dispatched" | "delivered" | "partial" | "paid" | "planned" | "in_transit" | "completed";
+export type Status = "ok" | "confirmed" | "low" | "low_stock" | "pending" | "out_of_stock" | "cancelled" | "dispatched" | "delivered" | "partial" | "paid" | "planned" | "in_transit" | "completed" | "picked_up";
 
 const statusConfig: Record<Status, { label: string; className: string }> = {
   ok: { label: "OK", className: "bg-success/10 text-success" },
