@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
+import { supabase } from "@/lib/supabase";
 import { Package, ShoppingCart, Truck, Users } from "lucide-react";
 import StatusBadge from "@/components/StatusBadge";
 import { format } from "date-fns";
