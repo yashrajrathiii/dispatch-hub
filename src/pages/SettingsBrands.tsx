@@ -19,7 +19,10 @@ export default function SettingsBrands() {
   const { data: brands = [], isLoading } = useQuery({
     queryKey: ["brands-all"],
     queryFn: async () => {
-      const { data, error } = await supabase.from("brands").select("*").order("name");
+      const { data, error } = await supabase
+        .from("brands")
+        .select("*, products(id, is_active)")
+        .order("name");
       if (error) throw error;
       return data;
     },
@@ -80,27 +83,32 @@ export default function SettingsBrands() {
             <thead>
               <tr className="border-b border-border text-left">
                 <th className="px-4 py-3 text-xs font-semibold uppercase text-muted-foreground">Brand Name</th>
+                <th className="px-4 py-3 text-xs font-semibold uppercase text-muted-foreground">Products</th>
                 <th className="px-4 py-3 text-xs font-semibold uppercase text-muted-foreground">Status</th>
                 <th className="px-4 py-3 text-xs font-semibold uppercase text-muted-foreground">Actions</th>
               </tr>
             </thead>
             <tbody>
-              {brands.map((brand: any) => (
-                <tr key={brand.id} className="border-b border-border last:border-0">
-                  <td className="px-4 py-3 text-sm font-medium text-foreground">{brand.name}</td>
-                  <td className="px-4 py-3">
-                    <Switch
-                      checked={brand.is_active}
-                      onCheckedChange={(checked) => toggleActive.mutate({ id: brand.id, is_active: checked })}
-                    />
-                  </td>
-                  <td className="px-4 py-3">
-                    <Button size="sm" variant="ghost" onClick={() => openEdit(brand)}>
-                      <Pencil className="h-4 w-4" />
-                    </Button>
-                  </td>
-                </tr>
-              ))}
+              {brands.map((brand: any) => {
+                const activeCount = brand.products?.filter((p: any) => p.is_active).length || 0;
+                return (
+                  <tr key={brand.id} className="border-b border-border last:border-0">
+                    <td className="px-4 py-3 text-sm font-medium text-foreground">{brand.name}</td>
+                    <td className="px-4 py-3 text-sm text-muted-foreground font-semibold">{activeCount}</td>
+                    <td className="px-4 py-3">
+                      <Switch
+                        checked={brand.is_active}
+                        onCheckedChange={(checked) => toggleActive.mutate({ id: brand.id, is_active: checked })}
+                      />
+                    </td>
+                    <td className="px-4 py-3">
+                      <Button size="sm" variant="ghost" onClick={() => openEdit(brand)}>
+                        <Pencil className="h-4 w-4" />
+                      </Button>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         )}

@@ -17,7 +17,7 @@ export default function SettingsLocations() {
   const { data: shops = [] } = useQuery({
     queryKey: ["all-shops-locations"],
     queryFn: async () => {
-      const { data } = await supabase.from("shops").select("*").order("type").order("name");
+      const { data } = await supabase.from("shops").select("*").is("deleted_at", null).order("type").order("name");
       return data || [];
     },
   });

@@ -86,7 +86,7 @@ export default function Dispatch() {
   const { data: godowns = [] } = useQuery({
     queryKey: ["godowns"],
     queryFn: async () => {
-      const { data } = await supabase.from("shops").select("*").eq("type", "GODOWN").eq("is_active", true);
+      const { data } = await supabase.from("shops").select("*").eq("type", "GODOWN").eq("is_active", true).is("deleted_at", null);
       return data || [];
     },
   });

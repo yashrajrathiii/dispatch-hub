@@ -822,7 +822,7 @@ export type Database = {
       payment_status: "PENDING" | "PARTIAL" | "PAID"
       product_category: "Dhuli" | "Dryfruits" | "Oil" | "Other"
       shop_type: "GODOWN" | "SHOP"
-      user_role: "OWNER" | "ADMIN" | "STAFF" | "ACCOUNTANT" | "DRIVER"
+      user_role: "OWNER" | "ADMIN" | "STAFF" | "ACCOUNTANT" | "DRIVER" | "SALESMAN"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -970,7 +970,7 @@ export const Constants = {
       payment_status: ["PENDING", "PARTIAL", "PAID"],
       product_category: ["Dhuli", "Dryfruits", "Oil", "Other"],
       shop_type: ["GODOWN", "SHOP"],
-      user_role: ["OWNER", "ADMIN", "STAFF", "ACCOUNTANT", "DRIVER"],
+      user_role: ["OWNER", "ADMIN", "STAFF", "ACCOUNTANT", "DRIVER", "SALESMAN"],
     },
   },
 } as const

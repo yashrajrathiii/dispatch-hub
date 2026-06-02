@@ -8,8 +8,9 @@ import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { useToast } from "@/hooks/use-toast";
 import { Plus, Pencil } from "lucide-react";
+import { useAuth } from "@/contexts/AuthContext";
+import { useToast } from "@/hooks/use-toast";
 
 interface ShopForm {
   name: string;
@@ -24,6 +25,7 @@ interface ShopForm {
 const emptyForm: ShopForm = { name: "", type: "SHOP", address: "", city: "", latitude: "", longitude: "", is_active: true };
 
 export default function SettingsShops() {
+  const { appUser } = useAuth();
   const { toast } = useToast();
   const qc = useQueryClient();
   const [modal, setModal] = useState<{ open: boolean; editId: string | null }>({ open: false, editId: null });
@@ -32,7 +34,7 @@ export default function SettingsShops() {
   const { data: shops = [], isLoading } = useQuery({
     queryKey: ["shops-all"],
     queryFn: async () => {
-      const { data, error } = await supabase.from("shops").select("*").order("name");
+      const { data, error } = await supabase.from("shops").select("*").is("deleted_at", null).order("name");
       if (error) throw error;
       return data;
     },
@@ -64,6 +66,35 @@ export default function SettingsShops() {
       toast({ title: modal.editId ? "Shop updated" : "Shop added" });
     },
     onError: (err: any) => toast({ title: "Error", description: err.message, variant: "destructive" }),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async (id: string) => {
+      // 1. Delete associated inventory entries
+      const { error: invErr } = await supabase.from("inventory").delete().eq("shop_id", id);
+      if (invErr) throw invErr;
+
+      // 2. Attempt to hard delete the shop
+      const { error } = await supabase.from("shops").delete().eq("id", id);
+
+      if (error) {
+        // Fall back to soft-deleting if referenced in other histories (foreign key error)
+        if (error.code === "23503") {
+          const { error: softErr } = await supabase.from("shops").update({ deleted_at: new Date().toISOString() }).eq("id", id);
+          if (softErr) throw softErr;
+          console.log("Shop has active histories. Soft-deleted the shop instead.");
+        } else {
+          throw error;
+        }
+      }
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["shops-all"] });
+      qc.invalidateQueries({ queryKey: ["shops"] });
+      setModal({ open: false, editId: null });
+      toast({ title: "Shop successfully deleted" });
+    },
+    onError: (err: any) => toast({ title: "Error deleting shop", description: err.message, variant: "destructive" }),
   });
 
   const toggleActive = useMutation({
@@ -198,11 +229,28 @@ export default function SettingsShops() {
               <Switch checked={form.is_active} onCheckedChange={(checked) => setForm(f => ({ ...f, is_active: checked }))} />
             </div>
           </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setModal({ open: false, editId: null })}>Cancel</Button>
-            <Button onClick={() => saveMutation.mutate()} disabled={!form.name || saveMutation.isPending}>
-              {saveMutation.isPending ? "Saving..." : "Save"}
-            </Button>
+          <DialogFooter className="flex justify-between items-center sm:justify-between w-full">
+            <div>
+              {modal.editId && appUser?.role === "OWNER" && (
+                <Button
+                  variant="destructive"
+                  onClick={() => {
+                    if (confirm("Are you sure you want to delete this shop? This will also remove it from active inventory.")) {
+                      deleteMutation.mutate(modal.editId);
+                    }
+                  }}
+                  disabled={deleteMutation.isPending}
+                >
+                  {deleteMutation.isPending ? "Deleting..." : "Delete"}
+                </Button>
+              )}
+            </div>
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={() => setModal({ open: false, editId: null })}>Cancel</Button>
+              <Button onClick={() => saveMutation.mutate()} disabled={!form.name || saveMutation.isPending}>
+                {saveMutation.isPending ? "Saving..." : "Save"}
+              </Button>
+            </div>
           </DialogFooter>
         </DialogContent>
       </Dialog>

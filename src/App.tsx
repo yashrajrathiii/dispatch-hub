@@ -45,11 +45,11 @@ const App = () => (
               <Route path="/inventory" element={<Inventory />} />
             </Route>
 
-            <Route element={<ProtectedRoute allowedRoles={["OWNER", "ADMIN"]}><AppLayout title="Price List" /></ProtectedRoute>}>
+            <Route element={<ProtectedRoute allowedRoles={["OWNER", "ADMIN", "SALESMAN"]}><AppLayout title="Price List" /></ProtectedRoute>}>
               <Route path="/price-list" element={<PriceList />} />
             </Route>
 
-            <Route element={<ProtectedRoute allowedRoles={["OWNER", "ADMIN", "STAFF"]}><AppLayout title="Orders" /></ProtectedRoute>}>
+            <Route element={<ProtectedRoute allowedRoles={["OWNER", "ADMIN", "STAFF", "SALESMAN"]}><AppLayout title="Orders" /></ProtectedRoute>}>
               <Route path="/orders" element={<Orders />} />
               <Route path="/orders/:id" element={<OrderDetail />} />
             </Route>

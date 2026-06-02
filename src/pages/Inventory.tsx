@@ -10,7 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { useToast } from "@/hooks/use-toast";
-import { Package, CheckCircle, XCircle, Plus, MoreHorizontal, AlertTriangle, Pencil, History } from "lucide-react";
+import { Package, CheckCircle, XCircle, Plus, MoreHorizontal, AlertTriangle, Pencil, History, Trash2 } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 function StockBadge({ qty }: { qty: number }) {
@@ -78,7 +78,7 @@ export default function Inventory() {
   const { data: shops = [] } = useQuery({
     queryKey: ["shops"],
     queryFn: async () => {
-      const { data } = await supabase.from("shops").select("*").eq("is_active", true);
+      const { data } = await supabase.from("shops").select("*").eq("is_active", true).is("deleted_at", null);
       return data || [];
     },
   });
@@ -129,7 +129,6 @@ export default function Inventory() {
       }
 
       if (change !== 0) {
-        if (!editNote.trim()) throw new Error("Note is required when changing quantity");
         const newQty = Number(item.quantity) + change;
         const { error: invErr } = await supabase
           .from("inventory")
@@ -198,6 +197,65 @@ export default function Inventory() {
       toast({ title: "Product added successfully" });
     },
     onError: (err: any) => toast({ title: "Error", description: err.message, variant: "destructive" }),
+  });
+
+  const deleteProduct = useMutation({
+    mutationFn: async (item: any) => {
+      const productId = item.product_id;
+
+      // 1. Delete associated product prices
+      const { error: priceErr } = await supabase
+        .from("product_prices")
+        .delete()
+        .eq("product_id", productId);
+      if (priceErr) throw priceErr;
+
+      // 2. Delete associated inventory logs
+      const { error: logErr } = await supabase
+        .from("inventory_logs")
+        .delete()
+        .eq("product_id", productId);
+      if (logErr) throw logErr;
+
+      // 3. Delete associated inventory entries
+      const { error: invErr } = await supabase
+        .from("inventory")
+        .delete()
+        .eq("product_id", productId);
+      if (invErr) throw invErr;
+
+      // 4. Finally, try to hard delete the product
+      const { error: prodErr } = await supabase
+        .from("products")
+        .delete()
+        .eq("id", productId);
+
+      if (prodErr) {
+        // If referenced in order history (foreign key constraint error)
+        if (prodErr.code === "23503") {
+          // Fall back to soft delete to preserve order history integrity while removing from active views
+          const { error: softErr } = await supabase
+            .from("products")
+            .update({ is_active: false })
+            .eq("id", productId);
+          if (softErr) throw softErr;
+          console.log("Product has active order history. Soft-deleted and removed from inventory lists.");
+        } else {
+          throw prodErr;
+        }
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["inventory"] });
+      toast({ title: "Product successfully deleted and removed from active inventory" });
+    },
+    onError: (err: any) => {
+      toast({
+        title: "Error deleting product",
+        description: err.message,
+        variant: "destructive",
+      });
+    },
   });
 
   const filtered = inventory.filter((item: any) => {
@@ -338,6 +396,18 @@ export default function Inventory() {
                             <DropdownMenuItem onClick={() => setHistoryPanel({ open: true, item })}>
                               <History className="mr-2 h-4 w-4" /> Stock History
                             </DropdownMenuItem>
+                            {appUser?.role === "OWNER" && (
+                              <DropdownMenuItem
+                                onClick={() => {
+                                  if (confirm(`Are you sure you want to delete "${item.product?.name}"? This will remove it from inventory and price lists.`)) {
+                                    deleteProduct.mutate(item);
+                                  }
+                                }}
+                                className="text-destructive focus:text-destructive focus:bg-destructive/10"
+                              >
+                                <Trash2 className="mr-2 h-4 w-4" /> Delete Product
+                              </DropdownMenuItem>
+                            )}
                           </DropdownMenuContent>
                         </DropdownMenu>
                       </td>
@@ -367,8 +437,8 @@ export default function Inventory() {
                 <p className="text-xs text-muted-foreground">Positive to add, negative to remove. Leave blank to only update Pcs/Box.</p>
               </div>
               <div className="space-y-2">
-                <Label>Note {Number(editQtyChange) !== 0 && editQtyChange !== "" && <span className="text-destructive">*</span>}</Label>
-                <Input value={editNote} onChange={(e) => setEditNote(e.target.value)} placeholder="Reason for adjustment..." />
+                <Label>Note</Label>
+                <Input value={editNote} onChange={(e) => setEditNote(e.target.value)} placeholder="Reason for adjustment (optional)..." />
               </div>
             </div>
             <DialogFooter>

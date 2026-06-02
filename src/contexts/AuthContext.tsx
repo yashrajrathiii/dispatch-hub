@@ -2,7 +2,7 @@ import { createContext, useContext, useEffect, useState, ReactNode } from "react
 import { Session, User } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabase";
 
-export type AppRole = "OWNER" | "ADMIN" | "STAFF" | "ACCOUNTANT" | "DRIVER";
+export type AppRole = "OWNER" | "ADMIN" | "STAFF" | "ACCOUNTANT" | "DRIVER" | "SALESMAN";
 
 interface AppUser {
   id: string;
@@ -33,13 +33,46 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [appUser, setAppUser] = useState<AppUser | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const fetchAppUser = async (authUserId: string) => {
-    const { data } = await supabase
-      .from("users")
-      .select("*")
-      .eq("auth_user_id", authUserId)
-      .maybeSingle();
-    if (data) setAppUser(data as unknown as AppUser);
+  const fetchAppUser = async (authUserId: string, currentUser?: User) => {
+    try {
+      const { data, error } = await supabase
+        .from("users")
+        .select("*")
+        .eq("auth_user_id", authUserId)
+        .maybeSingle();
+
+      if (error) {
+        console.error("Error fetching app user:", error);
+        return;
+      }
+
+      if (data) {
+        setAppUser(data as unknown as AppUser);
+      } else if (currentUser) {
+        console.log("App user record not found. Auto-creating public.users entry...");
+        const name = currentUser.user_metadata?.full_name || currentUser.email || "New User";
+        const email = currentUser.email || "";
+
+        const { data: newData, error: insertError } = await supabase
+          .from("users")
+          .insert({
+            auth_user_id: authUserId,
+            name,
+            email,
+            role: "STAFF"
+          })
+          .select()
+          .single();
+
+        if (insertError) {
+          console.error("Error auto-creating app user:", insertError);
+        } else if (newData) {
+          setAppUser(newData as unknown as AppUser);
+        }
+      }
+    } catch (e) {
+      console.error("Failed in fetchAppUser:", e);
+    }
   };
 
   useEffect(() => {
@@ -48,7 +81,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setSession(session);
         setUser(session?.user ?? null);
         if (session?.user) {
-          setTimeout(() => fetchAppUser(session.user.id), 0);
+          setTimeout(() => fetchAppUser(session.user.id, session.user), 0);
         } else {
           setAppUser(null);
         }
@@ -60,7 +93,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setSession(session);
       setUser(session?.user ?? null);
       if (session?.user) {
-        fetchAppUser(session.user.id);
+        fetchAppUser(session.user.id, session.user);
       }
       setLoading(false);
     });

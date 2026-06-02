@@ -73,7 +73,7 @@ export default function Orders() {
   const { data: shops = [] } = useQuery({
     queryKey: ["shops-active"],
     queryFn: async () => {
-      const { data } = await supabase.from("shops").select("*").eq("is_active", true);
+      const { data } = await supabase.from("shops").select("*").eq("is_active", true).is("deleted_at", null);
       return data || [];
     },
   });
@@ -315,7 +315,7 @@ export default function Orders() {
     onError: (err: any) => toast({ title: "Error", description: err.message, variant: "destructive" }),
   });
 
-  const canCreate = appUser?.role === "OWNER" || appUser?.role === "ADMIN" || appUser?.role === "STAFF";
+  const canCreate = appUser?.role === "OWNER" || appUser?.role === "ADMIN" || appUser?.role === "STAFF" || appUser?.role === "SALESMAN";
 
   return (
     <div className="space-y-6">
@@ -462,17 +462,6 @@ export default function Orders() {
                       <Label>Email</Label>
                       <Input value={newBuyer.email} onChange={(e) => setNewBuyer((b) => ({ ...b, email: e.target.value }))} />
                     </div>
-                    <div className="space-y-1">
-                      <Label>Category</Label>
-                      <Select value={newBuyer.category} onValueChange={(v: any) => setNewBuyer((b) => ({ ...b, category: v }))}>
-                        <SelectTrigger><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="DEALER">Dealer</SelectItem>
-                          <SelectItem value="RETAILER">Retailer</SelectItem>
-                          <SelectItem value="WALKIN">Walk-in</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
                   </div>
                 ) : (
                   <div className="space-y-1">
@@ -490,15 +479,10 @@ export default function Orders() {
                             className="w-full text-left px-3 py-2 text-sm hover:bg-accent"
                             onClick={() => { setSelectedBuyerId(b.id); setBuyerSearch(b.name); }}
                           >
-                            {b.name} {b.phone && `· ${b.phone}`} <span className="text-muted-foreground">({b.category})</span>
+                            {b.name} {b.phone && `· ${b.phone}`}
                           </button>
                         ))}
                       </div>
-                    )}
-                    {selectedBuyerId && (
-                      <p className="text-xs text-muted-foreground mt-1">
-                        Category: {buyers.find((b: any) => b.id === selectedBuyerId)?.category}
-                      </p>
                     )}
                   </div>
                 )}

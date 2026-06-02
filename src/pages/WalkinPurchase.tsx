@@ -345,18 +345,18 @@ export default function WalkinPurchase() {
                             className={`w-full text-left px-3 py-2 text-sm hover:bg-accent ${buyerId === b.id ? "bg-accent font-medium" : ""}`}
                             onClick={() => { setBuyerId(b.id); setBuyerSearch(b.name); }}
                           >
-                            {b.name} {b.phone && `(${b.phone})`} — <span className="text-muted-foreground capitalize">{b.category.toLowerCase()}</span>
+                            {b.name} {b.phone && `(${b.phone})`}
                           </button>
                         ))
                       )}
                     </div>
                   )}
                   {selectedBuyer && (
-                    <p className="text-xs text-muted-foreground">Selected: {selectedBuyer.name} ({selectedBuyer.category})</p>
+                    <p className="text-xs text-muted-foreground">Selected: {selectedBuyer.name}</p>
                   )}
                 </div>
               ) : (
-                <div className="grid grid-cols-3 gap-3">
+                <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1">
                     <Label>Name *</Label>
                     <Input value={newBuyer.name} onChange={(e) => setNewBuyer(p => ({ ...p, name: e.target.value }))} />
@@ -364,17 +364,6 @@ export default function WalkinPurchase() {
                   <div className="space-y-1">
                     <Label>Phone *</Label>
                     <Input value={newBuyer.phone} onChange={(e) => setNewBuyer(p => ({ ...p, phone: e.target.value }))} />
-                  </div>
-                  <div className="space-y-1">
-                    <Label>Category</Label>
-                    <Select value={newBuyer.category} onValueChange={(v) => setNewBuyer(p => ({ ...p, category: v }))}>
-                      <SelectTrigger><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="DEALER">Dealer</SelectItem>
-                        <SelectItem value="RETAILER">Retailer</SelectItem>
-                        <SelectItem value="WALKIN">Walk-in</SelectItem>
-                      </SelectContent>
-                    </Select>
                   </div>
                 </div>
               )}
