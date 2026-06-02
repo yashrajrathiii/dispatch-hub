@@ -12,7 +12,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Calendar } from "@/components/ui/calendar";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
-import { CalendarIcon, Plus, Pencil, Check, X, ChevronDown, ChevronRight } from "lucide-react";
+import { CalendarIcon, Plus, Pencil, Check, X, ChevronDown, ChevronRight, Search, FileText } from "lucide-react";
 import type { Tables } from "@/integrations/supabase/types";
 
 type Product = Tables<"products"> & { brand: Tables<"brands"> | null };
@@ -21,9 +21,7 @@ type ProductPrice = Tables<"product_prices">;
 
 interface PriceRow {
   product: Product;
-  dealer: number;
-  retailer: number;
-  walkin: number;
+  price: number;
 }
 
 export default function PriceList() {
@@ -34,10 +32,13 @@ export default function PriceList() {
   const [createOpen, setCreateOpen] = useState(false);
   const [newName, setNewName] = useState("");
   const [effectiveDate, setEffectiveDate] = useState<Date>(new Date());
-  const [editPrices, setEditPrices] = useState<Record<string, { dealer: string; retailer: string; walkin: string }>>({});
+  const [editPrices, setEditPrices] = useState<Record<string, string>>({});
   const [editingRow, setEditingRow] = useState<string | null>(null);
-  const [inlineEdit, setInlineEdit] = useState<{ dealer: string; retailer: string; walkin: string }>({ dealer: "0", retailer: "0", walkin: "0" });
+  const [inlineEdit, setInlineEdit] = useState<string>("0");
   const [expandedListId, setExpandedListId] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [isEditingNote, setIsEditingNote] = useState(false);
+  const [noteInput, setNoteInput] = useState("");
 
   const { data: activePriceList } = useQuery({
     queryKey: ["active-price-list"],
@@ -100,14 +101,10 @@ export default function PriceList() {
 
   const buildRows = (prices: ProductPrice[]): PriceRow[] =>
     products.map((p) => {
-      const dealer = prices.find((pp) => pp.product_id === p.id && pp.buyer_category === "DEALER");
-      const retailer = prices.find((pp) => pp.product_id === p.id && pp.buyer_category === "RETAILER");
-      const walkin = prices.find((pp) => pp.product_id === p.id && pp.buyer_category === "WALKIN");
+      const priceEntry = prices.find((pp) => pp.product_id === p.id);
       return {
         product: p,
-        dealer: dealer ? Number(dealer.price_per_unit) : 0,
-        retailer: retailer ? Number(retailer.price_per_unit) : 0,
-        walkin: walkin ? Number(walkin.price_per_unit) : 0,
+        price: priceEntry ? Number(priceEntry.price_per_unit) : 0,
       };
     });
 
@@ -124,15 +121,22 @@ export default function PriceList() {
     rows: priceRows.filter((r) => (r.product.brand?.name || "Other") === brand),
   })).filter((g) => g.rows.length > 0);
 
+  const filteredGrouped = grouped.map((group) => {
+    const brandMatches = group.brand.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchedRows = group.rows.filter((row) => 
+      brandMatches || row.product.name.toLowerCase().includes(searchQuery.toLowerCase())
+    );
+    return {
+      ...group,
+      rows: matchedRows
+    };
+  }).filter((group) => group.rows.length > 0);
+
   const handleOpenCreate = () => {
-    const prices: Record<string, { dealer: string; retailer: string; walkin: string }> = {};
+    const prices: Record<string, string> = {};
     products.forEach((p) => {
       const row = priceRows.find((r) => r.product.id === p.id);
-      prices[p.id] = {
-        dealer: String(row?.dealer ?? 0),
-        retailer: String(row?.retailer ?? 0),
-        walkin: String(row?.walkin ?? 0),
-      };
+      prices[p.id] = String(row?.price ?? 0);
     });
     setEditPrices(prices);
     setNewName(`Price List ${format(new Date(), "dd MMM yyyy")}`);
@@ -145,10 +149,13 @@ export default function PriceList() {
       if (!appUser) return;
       await supabase.from("price_lists").update({ is_active: false }).eq("is_active", true);
 
+      const existingNote = activePriceList?.name.split("||")[1] || "";
+      const fullName = existingNote ? `${newName}||${existingNote}` : newName;
+
       const { data: newList, error: listErr } = await supabase
         .from("price_lists")
         .insert({
-          name: newName,
+          name: fullName,
           effective_date: format(effectiveDate, "yyyy-MM-dd"),
           is_active: true,
           created_by_user_id: appUser.id,
@@ -158,14 +165,13 @@ export default function PriceList() {
       if (listErr) throw listErr;
 
       const rows: Array<{ price_list_id: string; product_id: string; buyer_category: "DEALER" | "RETAILER" | "WALKIN"; price_per_unit: number }> = [];
-      for (const [productId, vals] of Object.entries(editPrices)) {
+      for (const [productId, val] of Object.entries(editPrices)) {
         (["DEALER", "RETAILER", "WALKIN"] as const).forEach((cat) => {
-          const key = cat.toLowerCase() as "dealer" | "retailer" | "walkin";
           rows.push({
             price_list_id: newList.id,
             product_id: productId,
             buyer_category: cat,
-            price_per_unit: Number(vals[key]) || 0,
+            price_per_unit: Number(val) || 0,
           });
         });
       }
@@ -187,7 +193,7 @@ export default function PriceList() {
 
   const startInlineEdit = (row: PriceRow) => {
     setEditingRow(row.product.id);
-    setInlineEdit({ dealer: String(row.dealer), retailer: String(row.retailer), walkin: String(row.walkin) });
+    setInlineEdit(String(row.price));
   };
 
   const saveInlineEdit = useMutation({
@@ -195,16 +201,15 @@ export default function PriceList() {
       if (!activePriceList) return;
       const cats = ["DEALER", "RETAILER", "WALKIN"] as const;
       for (const cat of cats) {
-        const key = cat.toLowerCase() as "dealer" | "retailer" | "walkin";
         const existing = activePrices.find((pp) => pp.product_id === productId && pp.buyer_category === cat);
         if (existing) {
-          await supabase.from("product_prices").update({ price_per_unit: Number(inlineEdit[key]) || 0 }).eq("id", existing.id);
+          await supabase.from("product_prices").update({ price_per_unit: Number(inlineEdit) || 0 }).eq("id", existing.id);
         } else {
           await supabase.from("product_prices").insert({
             price_list_id: activePriceList.id,
             product_id: productId,
             buyer_category: cat,
-            price_per_unit: Number(inlineEdit[key]) || 0,
+            price_per_unit: Number(inlineEdit) || 0,
           });
         }
       }
@@ -215,6 +220,30 @@ export default function PriceList() {
       toast({ title: "Price updated" });
     },
     onError: (err: any) => toast({ title: "Error", description: err.message, variant: "destructive" }),
+  });
+
+  const updateNoteMutation = useMutation({
+    mutationFn: async (newNote: string) => {
+      if (!activePriceList) return;
+      const parts = activePriceList.name.split("||");
+      const actualName = parts[0];
+      const updatedName = `${actualName}||${newNote}`;
+      
+      const { error } = await supabase
+        .from("price_lists")
+        .update({ name: updatedName })
+        .eq("id", activePriceList.id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["active-price-list"] });
+      queryClient.invalidateQueries({ queryKey: ["all-price-lists"] });
+      setIsEditingNote(false);
+      toast({ title: "Salesmen note updated successfully" });
+    },
+    onError: (err: any) => {
+      toast({ title: "Error updating note", description: err.message, variant: "destructive" });
+    }
   });
 
   return (
@@ -235,7 +264,7 @@ export default function PriceList() {
         <TabsContent value="active" className="mt-6 space-y-6">
           <div>
             <h2 className="text-lg font-semibold text-foreground">
-              {activePriceList ? activePriceList.name : "No Active Price List"}
+              {activePriceList ? activePriceList.name.split("||")[0] : "No Active Price List"}
             </h2>
             {activePriceList && (
               <p className="text-sm text-muted-foreground">
@@ -244,24 +273,108 @@ export default function PriceList() {
             )}
           </div>
 
-          {grouped.length === 0 ? (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-start">
+            {/* Left Column: Salesmen Note Box */}
+            <div className="md:col-span-2 rounded-lg border border-warning/30 bg-warning/5 dark:bg-warning/10 p-4 relative shadow-sm">
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex items-start gap-3 w-full">
+                  <FileText className="h-5 w-5 text-warning mt-0.5 flex-shrink-0" />
+                  <div className="w-full">
+                     <h4 className="text-sm font-semibold text-warning-foreground uppercase tracking-wide">Notice for Salesmen</h4>
+                    {!activePriceList ? (
+                      <p className="text-sm mt-1 text-muted-foreground italic">
+                        No active price list. Create a price list to write a notice.
+                      </p>
+                    ) : isEditingNote ? (
+                      <div className="mt-2 space-y-2 w-full">
+                        <textarea
+                          className="w-full min-h-[80px] p-2 text-sm bg-background border border-border rounded-md focus:outline-none focus:ring-1 focus:ring-warning"
+                          value={noteInput}
+                          onChange={(e) => setNoteInput(e.target.value)}
+                          placeholder="Type a customizable note for the salesmen here..."
+                        />
+                        <div className="flex gap-2 justify-end">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => {
+                              setIsEditingNote(false);
+                            }}
+                          >
+                            Cancel
+                          </Button>
+                          <Button
+                            size="sm"
+                            className="bg-warning text-warning-foreground hover:bg-warning/90"
+                            onClick={() => updateNoteMutation.mutate(noteInput)}
+                            disabled={updateNoteMutation.isPending}
+                          >
+                            {updateNoteMutation.isPending ? "Saving..." : "Save"}
+                          </Button>
+                        </div>
+                      </div>
+                    ) : (
+                      <p className="text-sm mt-1 text-muted-foreground whitespace-pre-wrap">
+                        {activePriceList.name.split("||")[1] || "No customizable note added yet. Click edit to add a note for salesmen."}
+                      </p>
+                    )}
+                  </div>
+                </div>
+                
+                {activePriceList && canEdit && !isEditingNote && (
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    className="h-8 w-8 hover:bg-warning/20 text-warning flex-shrink-0"
+                    onClick={() => {
+                      setNoteInput(activePriceList.name.split("||")[1] || "");
+                      setIsEditingNote(true);
+                    }}
+                  >
+                    <Pencil className="h-4 w-4" />
+                  </Button>
+                )}
+              </div>
+            </div>
+
+            {/* Right Column: Search Bar */}
+            <div className="relative">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  className="pl-9 h-10 w-full"
+                  placeholder="Search brand or product..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                />
+              </div>
+              {searchQuery && (
+                <button
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground hover:text-foreground"
+                  onClick={() => setSearchQuery("")}
+                >
+                  Clear
+                </button>
+              )}
+            </div>
+          </div>
+
+          {filteredGrouped.length === 0 ? (
             <div className="rounded-lg border border-border bg-card p-12 text-center text-muted-foreground">
-              No products found. Add products from Inventory first.
+              {searchQuery ? "No products match your search." : "No products found. Add products from Inventory first."}
             </div>
           ) : (
-            grouped.map((group) => (
+            filteredGrouped.map((group) => (
               <div key={group.brand} className="rounded-lg border border-border bg-card shadow-sm overflow-hidden">
                 <div className="border-b border-border bg-muted/50 px-4 py-2">
                   <h3 className="text-sm font-semibold text-foreground">{group.brand}</h3>
                 </div>
-                <table className="w-full">
+                <table className="w-full" style={{ tableLayout: "fixed" }}>
                   <thead>
                     <tr className="border-b border-border text-left">
                       <th className="px-4 py-3 text-xs font-semibold uppercase text-muted-foreground">Product</th>
-                      <th className="px-4 py-3 text-xs font-semibold uppercase text-muted-foreground text-right">Dealer ₹</th>
-                      <th className="px-4 py-3 text-xs font-semibold uppercase text-muted-foreground text-right">Retailer ₹</th>
-                      <th className="px-4 py-3 text-xs font-semibold uppercase text-muted-foreground text-right">Walk-in ₹</th>
-                      {canEdit && <th className="px-4 py-3 text-xs font-semibold uppercase text-muted-foreground text-right">Actions</th>}
+                      <th style={{ width: "150px" }} className="px-4 py-3 text-xs font-semibold uppercase text-muted-foreground text-right">Price ₹</th>
+                      {canEdit && <th style={{ width: "100px" }} className="px-4 py-3 text-xs font-semibold uppercase text-muted-foreground text-right">Actions</th>}
                     </tr>
                   </thead>
                   <tbody>
@@ -270,16 +383,10 @@ export default function PriceList() {
                         <td className="px-4 py-3 text-sm font-medium text-foreground">{row.product.name}</td>
                         {editingRow === row.product.id ? (
                           <>
-                            <td className="px-2 py-1 text-right">
-                              <Input type="number" className="h-8 w-24 ml-auto" value={inlineEdit.dealer} onChange={(e) => setInlineEdit(p => ({ ...p, dealer: e.target.value }))} />
+                            <td style={{ width: "150px" }} className="px-4 py-3 text-right">
+                              <Input type="number" className="h-8 w-24 ml-auto" value={inlineEdit} onChange={(e) => setInlineEdit(e.target.value)} />
                             </td>
-                            <td className="px-2 py-1 text-right">
-                              <Input type="number" className="h-8 w-24 ml-auto" value={inlineEdit.retailer} onChange={(e) => setInlineEdit(p => ({ ...p, retailer: e.target.value }))} />
-                            </td>
-                            <td className="px-2 py-1 text-right">
-                              <Input type="number" className="h-8 w-24 ml-auto" value={inlineEdit.walkin} onChange={(e) => setInlineEdit(p => ({ ...p, walkin: e.target.value }))} />
-                            </td>
-                            <td className="px-4 py-3 text-right">
+                            <td style={{ width: "100px" }} className="px-4 py-3 text-right">
                               <div className="flex justify-end gap-1">
                                 <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => saveInlineEdit.mutate(row.product.id)} disabled={saveInlineEdit.isPending}>
                                   <Check className="h-4 w-4 text-primary" />
@@ -292,11 +399,9 @@ export default function PriceList() {
                           </>
                         ) : (
                           <>
-                            <td className="px-4 py-3 text-sm text-right font-medium text-foreground">{row.dealer > 0 ? `₹${row.dealer}` : "—"}</td>
-                            <td className="px-4 py-3 text-sm text-right font-medium text-foreground">{row.retailer > 0 ? `₹${row.retailer}` : "—"}</td>
-                            <td className="px-4 py-3 text-sm text-right font-medium text-foreground">{row.walkin > 0 ? `₹${row.walkin}` : "—"}</td>
+                            <td style={{ width: "150px" }} className="px-4 py-3 text-sm text-right font-medium text-foreground">{row.price > 0 ? `₹${row.price}` : "—"}</td>
                             {canEdit && (
-                              <td className="px-4 py-3 text-right">
+                              <td style={{ width: "100px" }} className="px-4 py-3 text-right">
                                 <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => startInlineEdit(row)}>
                                   <Pencil className="h-3.5 w-3.5 text-muted-foreground" />
                                 </Button>
@@ -331,7 +436,7 @@ export default function PriceList() {
                     {isExpanded ? <ChevronDown className="h-4 w-4 text-muted-foreground" /> : <ChevronRight className="h-4 w-4 text-muted-foreground" />}
                     <div>
                       <div className="flex items-center gap-2">
-                        <span className="text-sm font-semibold text-foreground">{pl.name}</span>
+                        <span className="text-sm font-semibold text-foreground">{pl.name.split("||")[0]}</span>
                         {pl.is_active && <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-semibold text-primary">Active</span>}
                       </div>
                       <p className="text-xs text-muted-foreground">
@@ -348,9 +453,7 @@ export default function PriceList() {
                         <tr className="border-b border-border bg-muted/30 text-left">
                           <th className="px-4 py-2 text-xs font-semibold uppercase text-muted-foreground">Product</th>
                           <th className="px-4 py-2 text-xs font-semibold uppercase text-muted-foreground">Brand</th>
-                          <th className="px-4 py-2 text-xs font-semibold uppercase text-muted-foreground text-right">Dealer ₹</th>
-                          <th className="px-4 py-2 text-xs font-semibold uppercase text-muted-foreground text-right">Retailer ₹</th>
-                          <th className="px-4 py-2 text-xs font-semibold uppercase text-muted-foreground text-right">Walk-in ₹</th>
+                          <th className="px-4 py-2 text-xs font-semibold uppercase text-muted-foreground text-right">Price ₹</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -358,9 +461,7 @@ export default function PriceList() {
                           <tr key={r.product.id} className="border-b border-border last:border-0">
                             <td className="px-4 py-2 text-sm text-foreground">{r.product.name}</td>
                             <td className="px-4 py-2 text-sm text-muted-foreground">{r.product.brand?.name || "—"}</td>
-                            <td className="px-4 py-2 text-sm text-right">{r.dealer > 0 ? `₹${r.dealer}` : "—"}</td>
-                            <td className="px-4 py-2 text-sm text-right">{r.retailer > 0 ? `₹${r.retailer}` : "—"}</td>
-                            <td className="px-4 py-2 text-sm text-right">{r.walkin > 0 ? `₹${r.walkin}` : "—"}</td>
+                            <td className="px-4 py-2 text-sm text-right">{r.price > 0 ? `₹${r.price}` : "—"}</td>
                           </tr>
                         ))}
                       </tbody>
@@ -407,9 +508,7 @@ export default function PriceList() {
                   <tr className="border-b border-border bg-muted/50 text-left">
                     <th className="px-4 py-2 text-xs font-semibold uppercase text-muted-foreground">Product</th>
                     <th className="px-4 py-2 text-xs font-semibold uppercase text-muted-foreground">Brand</th>
-                    <th className="px-4 py-2 text-xs font-semibold uppercase text-muted-foreground">Dealer ₹</th>
-                    <th className="px-4 py-2 text-xs font-semibold uppercase text-muted-foreground">Retailer ₹</th>
-                    <th className="px-4 py-2 text-xs font-semibold uppercase text-muted-foreground">Walk-in ₹</th>
+                    <th className="px-4 py-2 text-xs font-semibold uppercase text-muted-foreground text-right">Price ₹</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -418,13 +517,7 @@ export default function PriceList() {
                       <td className="px-4 py-2 text-sm font-medium text-foreground">{p.name}</td>
                       <td className="px-4 py-2 text-sm text-muted-foreground">{p.brand?.name || "—"}</td>
                       <td className="px-2 py-1">
-                        <Input type="number" className="h-8 w-24" value={editPrices[p.id]?.dealer ?? "0"} onChange={(e) => setEditPrices(prev => ({ ...prev, [p.id]: { ...prev[p.id], dealer: e.target.value } }))} />
-                      </td>
-                      <td className="px-2 py-1">
-                        <Input type="number" className="h-8 w-24" value={editPrices[p.id]?.retailer ?? "0"} onChange={(e) => setEditPrices(prev => ({ ...prev, [p.id]: { ...prev[p.id], retailer: e.target.value } }))} />
-                      </td>
-                      <td className="px-2 py-1">
-                        <Input type="number" className="h-8 w-24" value={editPrices[p.id]?.walkin ?? "0"} onChange={(e) => setEditPrices(prev => ({ ...prev, [p.id]: { ...prev[p.id], walkin: e.target.value } }))} />
+                        <Input type="number" className="h-8 w-24 ml-auto" value={editPrices[p.id] ?? "0"} onChange={(e) => setEditPrices(prev => ({ ...prev, [p.id]: e.target.value }))} />
                       </td>
                     </tr>
                   ))}
