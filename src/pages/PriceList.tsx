@@ -280,13 +280,12 @@ export default function PriceList() {
                 <div className="flex items-start gap-3 w-full">
                   <FileText className="h-5 w-5 text-warning mt-0.5 flex-shrink-0" />
                   <div className="w-full">
-                     <h4 className="text-sm font-semibold text-warning-foreground uppercase tracking-wide">Notice for Salesmen</h4>
                     {!activePriceList ? (
-                      <p className="text-sm mt-1 text-muted-foreground italic">
+                      <p className="text-sm text-muted-foreground italic">
                         No active price list. Create a price list to write a notice.
                       </p>
                     ) : isEditingNote ? (
-                      <div className="mt-2 space-y-2 w-full">
+                      <div className="space-y-2 w-full">
                         <textarea
                           className="w-full min-h-[80px] p-2 text-sm bg-background border border-border rounded-md focus:outline-none focus:ring-1 focus:ring-warning"
                           value={noteInput}
@@ -314,7 +313,7 @@ export default function PriceList() {
                         </div>
                       </div>
                     ) : (
-                      <p className="text-sm mt-1 text-muted-foreground whitespace-pre-wrap">
+                      <p className="text-sm text-muted-foreground whitespace-pre-wrap">
                         {activePriceList.name.split("||")[1] || "No customizable note added yet. Click edit to add a note for salesmen."}
                       </p>
                     )}
