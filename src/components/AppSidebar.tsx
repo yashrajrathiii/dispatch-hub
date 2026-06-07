@@ -12,9 +12,11 @@ import {
   Receipt,
   MapPin,
   Navigation,
+  X,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useAuth, AppRole } from "@/contexts/AuthContext";
+import { cn } from "@/lib/utils";
 
 interface NavItem {
   title: string;
@@ -44,16 +46,32 @@ const allItems: NavItem[] = [
   },
 ];
 
-export default function AppSidebar() {
+interface AppSidebarProps {
+  isOpen: boolean;
+  onClose: () => void;
+}
+
+export default function AppSidebar({ isOpen, onClose }: AppSidebarProps) {
   const { appUser } = useAuth();
   const role = appUser?.role ?? "STAFF";
   const items = allItems.filter((item) => item.roles.includes(role));
 
   return (
-    <aside className="fixed left-0 top-0 z-30 flex h-screen w-60 flex-col border-r border-border bg-card">
-      <div className="flex h-16 items-center gap-2 border-b border-border px-6">
-        <Truck className="h-7 w-7 text-primary" />
-        <span className="text-lg font-bold text-foreground">DispatchOps</span>
+    <aside className={cn(
+      "fixed left-0 top-0 z-40 flex h-screen w-60 flex-col border-r border-border bg-card transition-transform duration-300 ease-in-out lg:translate-x-0 lg:z-30",
+      isOpen ? "translate-x-0" : "-translate-x-full"
+    )}>
+      <div className="flex h-16 items-center justify-between border-b border-border px-6">
+        <div className="flex items-center gap-2">
+          <Truck className="h-7 w-7 text-primary" />
+          <span className="text-lg font-bold text-foreground">DispatchOps</span>
+        </div>
+        <button 
+          onClick={onClose} 
+          className="lg:hidden rounded-md p-1.5 text-muted-foreground hover:bg-accent hover:text-foreground"
+        >
+          <X className="h-5 w-5" />
+        </button>
       </div>
 
       <nav className="flex-1 overflow-y-auto px-3 py-4">
@@ -65,6 +83,7 @@ export default function AppSidebar() {
                 end={item.url === "/" || !!item.children}
                 className="flex items-center gap-3 rounded-md px-3 py-2.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
                 activeClassName="bg-sidebar-accent text-primary border-l-[3px] border-primary font-semibold"
+                onClick={onClose}
               >
                 <item.icon className="h-5 w-5" />
                 <span>{item.title}</span>
@@ -77,6 +96,7 @@ export default function AppSidebar() {
                         to={child.url}
                         className="flex items-center gap-3 rounded-md px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
                         activeClassName="text-primary font-semibold"
+                        onClick={onClose}
                       >
                         <child.icon className="h-4 w-4" />
                         <span>{child.title}</span>

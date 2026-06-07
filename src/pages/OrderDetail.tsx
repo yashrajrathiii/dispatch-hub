@@ -194,7 +194,7 @@ export default function OrderDetail() {
     );
   }
 
-  if (!order) {
+  if (!order || (appUser?.role === "SALESMAN" && order.created_by_user_id !== appUser.id)) {
     return <div className="py-12 text-center text-muted-foreground">Order not found.</div>;
   }
 

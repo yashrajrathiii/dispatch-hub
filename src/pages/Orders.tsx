@@ -59,12 +59,19 @@ export default function Orders() {
 
   // Data queries
   const { data: orders = [], isLoading } = useQuery({
-    queryKey: ["orders"],
+    queryKey: ["orders", appUser?.id, appUser?.role],
+    enabled: !!appUser,
     queryFn: async () => {
-      const { data, error } = await supabase
+      let query = supabase
         .from("orders")
         .select("*, buyer:buyers(*), shop:shops(*), created_by:users!orders_created_by_user_id_fkey(*)")
         .order("created_at", { ascending: false });
+
+      if (appUser?.role === "SALESMAN") {
+        query = query.eq("created_by_user_id", appUser.id);
+      }
+
+      const { data, error } = await query;
       if (error) throw error;
       return data;
     },

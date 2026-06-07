@@ -4,6 +4,8 @@ import { supabase } from "@/lib/supabase";
 import { Package, ShoppingCart, Truck, Users } from "lucide-react";
 import StatusBadge from "@/components/StatusBadge";
 import { format } from "date-fns";
+import { useEffect } from "react";
+import { useAuth } from "@/contexts/AuthContext";
 
 const statusToBadge: Record<string, any> = {
   PENDING: "pending",
@@ -15,11 +17,14 @@ const statusToBadge: Record<string, any> = {
 
 export default function Dashboard() {
   const navigate = useNavigate();
+  const { appUser } = useAuth();
   const today = format(new Date(), "yyyy-MM-dd");
   const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
 
+
   const { data: stats } = useQuery({
     queryKey: ["dashboard-stats", today],
+    enabled: !!appUser && appUser.role !== "SALESMAN",
     queryFn: async () => {
       const [products, ordersActive, ordersPending, dispatchesToday, dispatchesTransit, buyersActive, buyersNew] = await Promise.all([
         supabase.from("products").select("id", { count: "exact", head: true }).eq("is_active", true),
@@ -43,13 +48,20 @@ export default function Dashboard() {
   });
 
   const { data: recentOrders = [] } = useQuery({
-    queryKey: ["dashboard-recent-orders"],
+    queryKey: ["dashboard-recent-orders", appUser?.id, appUser?.role],
+    enabled: !!appUser,
     queryFn: async () => {
-      const { data: orders } = await supabase
+      let query = supabase
         .from("orders")
         .select("*, buyer:buyers(name)")
         .order("created_at", { ascending: false })
         .limit(10);
+
+      if (appUser?.role === "SALESMAN") {
+        query = query.eq("created_by_user_id", appUser.id);
+      }
+
+      const { data: orders } = await query;
       if (!orders) return [];
       const ids = orders.map((o: any) => o.id);
       const { data: items } = await supabase.from("order_items").select("order_id, line_total").in("order_id", ids);
@@ -73,22 +85,24 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-6">
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {cards.map((stat) => (
-          <button
-            key={stat.label}
-            onClick={() => navigate(stat.route)}
-            className="rounded-lg border border-border bg-card p-5 shadow-sm text-left hover:border-primary/40 hover:shadow-md transition"
-          >
-            <div className="flex items-center justify-between">
-              <p className="text-sm font-medium text-muted-foreground">{stat.label}</p>
-              <stat.icon className="h-5 w-5 text-primary" />
-            </div>
-            <p className="mt-2 text-3xl font-bold text-foreground">{stat.value}</p>
-            <p className="mt-1 text-xs text-muted-foreground">{stat.change}</p>
-          </button>
-        ))}
-      </div>
+      {appUser?.role !== "SALESMAN" && (
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          {cards.map((stat) => (
+            <button
+              key={stat.label}
+              onClick={() => navigate(stat.route)}
+              className="rounded-lg border border-border bg-card p-5 shadow-sm text-left hover:border-primary/40 hover:shadow-md transition"
+            >
+              <div className="flex items-center justify-between">
+                <p className="text-sm font-medium text-muted-foreground">{stat.label}</p>
+                <stat.icon className="h-5 w-5 text-primary" />
+              </div>
+              <p className="mt-2 text-3xl font-bold text-foreground">{stat.value}</p>
+              <p className="mt-1 text-xs text-muted-foreground">{stat.change}</p>
+            </button>
+          ))}
+        </div>
+      )}
 
       <div className="rounded-lg border border-border bg-card shadow-sm">
         <div className="border-b border-border px-5 py-4">

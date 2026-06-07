@@ -1,4 +1,4 @@
-import { LogOut } from "lucide-react";
+import { LogOut, Menu, Truck } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -7,9 +7,10 @@ import NotificationBell from "@/components/NotificationBell";
 
 interface Props {
   title: string;
+  onMenuClick: () => void;
 }
 
-export default function TopBar({ title }: Props) {
+export default function TopBar({ title, onMenuClick }: Props) {
   const { appUser, signOut } = useAuth();
   const navigate = useNavigate();
 
@@ -24,7 +25,23 @@ export default function TopBar({ title }: Props) {
 
   return (
     <header className="flex h-16 items-center justify-between border-b border-border bg-card px-6">
-      <h1 className="text-xl font-semibold text-foreground">{title}</h1>
+      <div className="flex items-center gap-2">
+        <Button 
+          variant="ghost" 
+          size="icon" 
+          onClick={onMenuClick} 
+          className="lg:hidden text-muted-foreground -ml-2 mr-1"
+        >
+          <Menu className="h-6 w-6" />
+        </Button>
+        
+        <div className="flex items-center gap-1.5 lg:hidden mr-1">
+          <Truck className="h-5 w-5 text-primary" />
+          <span className="text-sm font-bold text-foreground">DispatchOps</span>
+        </div>
+
+        <h1 className="text-base sm:text-xl font-semibold text-foreground border-l border-border pl-3 lg:border-0 lg:pl-0">{title}</h1>
+      </div>
 
       <div className="flex items-center gap-4">
         <NotificationBell />
