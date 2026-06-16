@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 import { Switch } from "@/components/ui/switch";
@@ -381,7 +381,7 @@ export default function Orders() {
                 const godownName = order.shop?.type === "GODOWN" ? order.shop?.name : (order.shop?.name || "—");
                 return (
                   <tr key={order.id} className="border-b border-gray-200 last:border-0">
-                    <td className="px-4 py-3 text-sm font-mono font-medium text-foreground">#{order.id.slice(0, 8)}</td>
+                    <td className="px-4 py-3 text-sm font-mono font-medium text-foreground">#{order.order_number || order.id.slice(0, 8)}</td>
                     <td className="px-4 py-3 text-sm text-foreground">{order.buyer?.name || "—"}</td>
                     <td className="px-4 py-3 text-sm text-muted-foreground">{order.buyer?.category || "—"}</td>
                     <td className="px-4 py-3 text-sm text-muted-foreground">{godownName}</td>
@@ -435,12 +435,12 @@ export default function Orders() {
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Create Order Drawer */}
-      <Sheet open={drawerOpen} onOpenChange={(o) => { if (!o) resetDrawer(); setDrawerOpen(o); }}>
-        <SheetContent className="w-full sm:max-w-lg overflow-y-auto border-l border-gray-200">
-          <SheetHeader>
-            <SheetTitle>Create Order — Step {step}/4</SheetTitle>
-          </SheetHeader>
+      {/* Create Order Dialog */}
+      <Dialog open={drawerOpen} onOpenChange={(o) => { if (!o) resetDrawer(); setDrawerOpen(o); }}>
+        <DialogContent className="w-full sm:max-w-xl max-h-[95vh] overflow-y-auto border border-gray-200">
+          <DialogHeader>
+            <DialogTitle>Create Order — Step {step}/4</DialogTitle>
+          </DialogHeader>
           <div className="mt-6 space-y-6">
             <div className="flex gap-1">
               {[1, 2, 3, 4].map((s) => (
@@ -701,8 +701,8 @@ export default function Orders() {
               </div>
             )}
           </div>
-        </SheetContent>
-      </Sheet>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
