@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Users, Shield, Building2, UserPlus, Phone, Mail, Key } from "lucide-react";
+import { Plus, Users, Shield, UserPlus, Phone, Mail, Key } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 
 // Initialize a secondary Supabase client without session persistence
@@ -45,7 +45,6 @@ export default function SettingsUsers() {
     emailOrPhone: "",
     password: "DispatchHub123",
     role: "STAFF",
-    assignedShopId: "NONE",
   });
 
   const { data: users = [], isLoading } = useQuery({
@@ -53,21 +52,8 @@ export default function SettingsUsers() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("users")
-        .select("*, assigned_shop:shops(name)")
-        .order("created_at", { ascending: false });
-      if (error) throw error;
-      return data || [];
-    },
-  });
-
-  const { data: shops = [] } = useQuery({
-    queryKey: ["settings-shops-list"],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("shops")
         .select("*")
-        .is("deleted_at", null)
-        .order("name");
+        .order("created_at", { ascending: false });
       if (error) throw error;
       return data || [];
     },
@@ -117,7 +103,6 @@ export default function SettingsUsers() {
           email: isEmail ? form.emailOrPhone : null,
           phone: !isEmail ? formatPhone(form.emailOrPhone) : null,
           role: form.role,
-          assigned_shop_id: form.assignedShopId === "NONE" ? null : form.assignedShopId,
         })
         .eq("auth_user_id", authUserId);
 
@@ -136,7 +121,6 @@ export default function SettingsUsers() {
         emailOrPhone: "",
         password: "DispatchHub123",
         role: "STAFF",
-        assignedShopId: "NONE",
       });
     },
     onError: (e: any) => {
@@ -150,7 +134,6 @@ export default function SettingsUsers() {
       emailOrPhone: "",
       password: "DispatchHub123",
       role: "STAFF",
-      assignedShopId: "NONE",
     });
     setOpen(true);
   };
@@ -190,7 +173,6 @@ export default function SettingsUsers() {
                 <th className="px-4 py-3 text-xs font-semibold uppercase text-muted-foreground">Name</th>
                 <th className="px-4 py-3 text-xs font-semibold uppercase text-muted-foreground">Role</th>
                 <th className="px-4 py-3 text-xs font-semibold uppercase text-muted-foreground">Contact</th>
-                <th className="px-4 py-3 text-xs font-semibold uppercase text-muted-foreground">Assigned Shop</th>
                 <th className="px-4 py-3 text-xs font-semibold uppercase text-muted-foreground">Status</th>
               </tr>
             </thead>
@@ -226,16 +208,6 @@ export default function SettingsUsers() {
                       </div>
                     )}
                     {!user.email && !user.phone && <span>—</span>}
-                  </td>
-                  <td className="px-4 py-3 text-sm text-muted-foreground">
-                    {user.assigned_shop?.name ? (
-                      <div className="flex items-center gap-1.5">
-                        <Building2 className="h-3.5 w-3.5 text-muted-foreground" />
-                        {user.assigned_shop.name}
-                      </div>
-                    ) : (
-                      <span>—</span>
-                    )}
                   </td>
                   <td className="px-4 py-3 text-sm">
                     <Badge className={user.is_active ? "bg-green-100 text-green-800" : "bg-gray-100 text-gray-800"}>
@@ -293,46 +265,24 @@ export default function SettingsUsers() {
               </span>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-1">
-                <Label htmlFor="role">Designated Role</Label>
-                <Select
-                  value={form.role}
-                  onValueChange={(val) => setForm((f) => ({ ...f, role: val }))}
-                >
-                  <SelectTrigger id="role">
-                    <SelectValue placeholder="Select role" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="OWNER">Owner</SelectItem>
-                    <SelectItem value="ADMIN">Admin</SelectItem>
-                    <SelectItem value="STAFF">Staff</SelectItem>
-                    <SelectItem value="ACCOUNTANT">Accountant</SelectItem>
-                    <SelectItem value="DRIVER">Driver</SelectItem>
-                    <SelectItem value="SALESMAN">Salesman</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-1">
-                <Label htmlFor="shop">Assigned Shop (Optional)</Label>
-                <Select
-                  value={form.assignedShopId}
-                  onValueChange={(val) => setForm((f) => ({ ...f, assignedShopId: val }))}
-                >
-                  <SelectTrigger id="shop">
-                    <SelectValue placeholder="Select shop" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="NONE">None / Generic</SelectItem>
-                    {shops.map((shop: any) => (
-                      <SelectItem key={shop.id} value={shop.id}>
-                        {shop.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+            <div className="space-y-1">
+              <Label htmlFor="role">Designated Role</Label>
+              <Select
+                value={form.role}
+                onValueChange={(val) => setForm((f) => ({ ...f, role: val }))}
+              >
+                <SelectTrigger id="role">
+                  <SelectValue placeholder="Select role" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="OWNER">Owner</SelectItem>
+                  <SelectItem value="ADMIN">Admin</SelectItem>
+                  <SelectItem value="STAFF">Staff</SelectItem>
+                  <SelectItem value="ACCOUNTANT">Accountant</SelectItem>
+                  <SelectItem value="DRIVER">Driver</SelectItem>
+                  <SelectItem value="SALESMAN">Salesman</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
           </div>
           <DialogFooter>
