@@ -204,7 +204,6 @@ export default function SettingsUsers() {
                       </div>
                       <div>
                         <div>{user.name}</div>
-                        <span className="text-[10px] text-muted-foreground font-mono">{user.id.slice(0, 8)}</span>
                       </div>
                     </div>
                   </td>
