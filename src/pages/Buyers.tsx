@@ -4,7 +4,6 @@ import { supabase } from "@/lib/supabase";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Switch } from "@/components/ui/switch";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
@@ -39,7 +38,6 @@ export default function Buyers() {
     address: "",
     gstin: "",
     notes: "",
-    isActive: true,
   });
 
   const { data: buyers = [], isLoading } = useQuery<Buyer[]>({
@@ -63,7 +61,7 @@ export default function Buyers() {
         address: form.address || null,
         gstin: form.gstin || null,
         notes: form.notes || null,
-        is_active: form.isActive,
+        is_active: true,
       };
 
       if (modal.editId) {
@@ -111,24 +109,6 @@ export default function Buyers() {
     },
   });
 
-  const toggleActiveMutation = useMutation({
-    mutationFn: async ({ id, is_active }: { id: string; is_active: boolean }) => {
-      const { error } = await supabase
-        .from("buyers")
-        .update({ is_active })
-        .eq("id", id);
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["buyers-all"] });
-      queryClient.invalidateQueries({ queryKey: ["buyers-active"] });
-      queryClient.invalidateQueries({ queryKey: ["buyers"] });
-    },
-    onError: (err: any) => {
-      toast({ title: "Error updating status", description: err.message, variant: "destructive" });
-    },
-  });
-
   const openAdd = () => {
     setForm({
       name: "",
@@ -137,7 +117,6 @@ export default function Buyers() {
       address: "",
       gstin: "",
       notes: "",
-      isActive: true,
     });
     setModal({ open: true, editId: null });
   };
@@ -150,7 +129,6 @@ export default function Buyers() {
       address: buyer.address || "",
       gstin: buyer.gstin || "",
       notes: buyer.notes || "",
-      isActive: buyer.is_active,
     });
     setModal({ open: true, editId: buyer.id });
   };
@@ -209,7 +187,6 @@ export default function Buyers() {
                 <th className="px-4 py-3 text-xs font-semibold uppercase text-muted-foreground">Contact</th>
                 <th className="px-4 py-3 text-xs font-semibold uppercase text-muted-foreground">Address</th>
                 <th className="px-4 py-3 text-xs font-semibold uppercase text-muted-foreground">GSTIN</th>
-                <th className="px-4 py-3 text-xs font-semibold uppercase text-muted-foreground">Status</th>
                 <th className="px-4 py-3 text-xs font-semibold uppercase text-muted-foreground text-right">Actions</th>
               </tr>
             </thead>
@@ -235,14 +212,6 @@ export default function Buyers() {
                   </td>
                   <td className="px-4 py-3 text-sm font-mono text-muted-foreground">
                     {buyer.gstin || "—"}
-                  </td>
-                  <td className="px-4 py-3">
-                    <Switch
-                      checked={buyer.is_active}
-                      onCheckedChange={(checked) =>
-                        toggleActiveMutation.mutate({ id: buyer.id, is_active: checked })
-                      }
-                    />
                   </td>
                   <td className="px-4 py-3 text-right">
                     <DropdownMenu>
@@ -333,14 +302,6 @@ export default function Buyers() {
                 value={form.notes}
                 onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))}
                 placeholder="Any special pricing agreements, default slot, etc."
-              />
-            </div>
-            <div className="flex items-center gap-3 pt-2">
-              <Label htmlFor="isActive">Active Status</Label>
-              <Switch
-                id="isActive"
-                checked={form.isActive}
-                onCheckedChange={(checked) => setForm((f) => ({ ...f, isActive: checked }))}
               />
             </div>
           </div>
