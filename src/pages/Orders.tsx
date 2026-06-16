@@ -380,7 +380,11 @@ export default function Orders() {
               {filtered.map((order: any) => {
                 const godownName = order.shop?.type === "GODOWN" ? order.shop?.name : (order.shop?.name || "—");
                 return (
-                  <tr key={order.id} className="border-b border-gray-200 last:border-0">
+                  <tr
+                    key={order.id}
+                    className="border-b border-gray-200 last:border-0 cursor-pointer hover:bg-muted/50 transition-colors"
+                    onClick={() => navigate(`/orders/${order.id}`)}
+                  >
                     <td className="px-4 py-3 text-sm font-mono font-medium text-foreground">#{order.order_number || order.id.slice(0, 8)}</td>
                     <td className="px-4 py-3 text-sm text-foreground">{order.buyer?.name || "—"}</td>
                     <td className="px-4 py-3 text-sm text-muted-foreground">{order.buyer?.category || "—"}</td>
@@ -390,7 +394,7 @@ export default function Orders() {
                     <td className="px-4 py-3 text-sm text-muted-foreground">
                       {format(new Date(order.created_at), "dd MMM")}
                     </td>
-                    <td className="px-4 py-3 text-right">
+                    <td className="px-4 py-3 text-right" onClick={(e) => e.stopPropagation()}>
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                           <Button size="icon" variant="ghost" className="h-8 w-8">
