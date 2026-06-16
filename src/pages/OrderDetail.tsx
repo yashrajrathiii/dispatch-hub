@@ -112,8 +112,8 @@ export default function OrderDetail() {
         change_type: (direction === "deduct" ? "SOLD" : "ADJUSTED") as any,
         quantity_change: direction === "deduct" ? -qty : qty,
         note: direction === "deduct"
-          ? `Deducted on Order Confirm #${order.id.slice(0, 8)}`
-          : `Restocked on Order Cancel #${order.id.slice(0, 8)}`,
+          ? `Deducted on Order Confirm #${order.order_number || order.id.slice(0, 8)}`
+          : `Restocked on Order Cancel #${order.order_number || order.id.slice(0, 8)}`,
         created_by_user_id: appUser.id,
       });
     }
@@ -210,7 +210,7 @@ export default function OrderDetail() {
           <ArrowLeft className="h-5 w-5" />
         </Button>
         <div>
-          <h2 className="text-lg font-semibold text-foreground">Order #{order.id.slice(0, 8)}</h2>
+          <h2 className="text-lg font-semibold text-foreground">Order #{order.order_number || order.id.slice(0, 8)}</h2>
           <p className="text-sm text-muted-foreground">
             Created {format(new Date(order.created_at), "dd MMM yyyy, HH:mm")}
           </p>
@@ -283,8 +283,8 @@ export default function OrderDetail() {
         <div className="rounded-lg border border-gray-200 bg-card p-4 space-y-2">
           <p className="text-xs font-semibold uppercase text-muted-foreground">Buyer</p>
           <p className="text-sm font-medium text-foreground">{order.buyer?.name}</p>
-          <p className="text-[11px] text-muted-foreground font-mono">ID: {order.buyer?.id?.slice(0, 8)}</p>
-          <p className="text-xs text-muted-foreground">{order.buyer?.category} · {order.buyer?.phone || "No phone"}</p>
+          <p className="text-[11px] text-muted-foreground font-mono">ID: {order.buyer?.buyer_number || order.buyer?.id?.slice(0, 8)}</p>
+          <p className="text-xs text-muted-foreground">{order.buyer?.phone || "No phone"}</p>
         </div>
         <div className="rounded-lg border border-gray-200 bg-card p-4 space-y-2">
           <p className="text-xs font-semibold uppercase text-muted-foreground">Delivery</p>

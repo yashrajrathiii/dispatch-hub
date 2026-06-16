@@ -20,7 +20,7 @@ export default function BillingDetail() {
     queryFn: async () => {
       const { data } = await supabase
         .from("walkin_purchases")
-        .select("*, shop:shops(name), buyer:buyers(name, phone, category), created_by:users!walkin_purchases_created_by_user_id_fkey(name)")
+        .select("*, shop:shops(name), buyer:buyers(name, phone), created_by:users!walkin_purchases_created_by_user_id_fkey(name)")
         .eq("id", id!)
         .maybeSingle();
       return data;
@@ -100,7 +100,7 @@ export default function BillingDetail() {
 
   const buyerName = purchase.buyer?.name || purchase.buyer_name_override || "Unknown";
   const buyerPhone = purchase.buyer?.phone || purchase.buyer_phone_override || "—";
-  const buyerCategory = purchase.buyer?.category || "WALKIN";
+
 
   return (
     <div className="space-y-6">
@@ -111,9 +111,14 @@ export default function BillingDetail() {
       {/* Header */}
       <div className="flex items-start justify-between">
         <div>
-          <h2 className="text-xl font-semibold text-foreground">{buyerName}</h2>
+          <h2 className="text-xl font-semibold text-foreground">
+            {buyerName}{" "}
+            <span className="text-sm font-normal text-muted-foreground font-mono ml-2">
+              (Bill #{purchase.walkin_number || purchase.id.slice(0, 8)})
+            </span>
+          </h2>
           <p className="text-sm text-muted-foreground mt-1">
-            {buyerPhone} · <span className="capitalize">{buyerCategory.toLowerCase()}</span> · {purchase.shop?.name || "—"}
+            {buyerPhone} · {purchase.shop?.name || "—"}
           </p>
           <p className="text-xs text-muted-foreground mt-0.5">
             Recorded on {new Date(purchase.created_at).toLocaleString()} by {(purchase.created_by as any)?.name || "—"}
@@ -203,11 +208,10 @@ export default function BillingDetail() {
             <div>
               <p><strong>Buyer:</strong> {buyerName}</p>
               <p><strong>Phone:</strong> {buyerPhone}</p>
-              <p><strong>Category:</strong> {buyerCategory}</p>
             </div>
             <div style={{ textAlign: "right" }}>
               <p><strong>Date:</strong> {new Date(purchase.created_at).toLocaleDateString()}</p>
-              <p><strong>Bill #:</strong> {purchase.id.slice(0, 8).toUpperCase()}</p>
+              <p><strong>Bill #:</strong> {purchase.walkin_number || purchase.id.slice(0, 8).toUpperCase()}</p>
               <p><strong>Shop:</strong> {purchase.shop?.name || "—"}</p>
             </div>
           </div>

@@ -8,7 +8,7 @@ interface AppUser {
   id: string;
   auth_user_id: string;
   name: string;
-  email: string;
+  email: string | null;
   phone: string | null;
   role: AppRole;
   assigned_shop_id: string | null;
@@ -20,7 +20,7 @@ interface AuthContextType {
   user: User | null;
   appUser: AppUser | null;
   loading: boolean;
-  signIn: (email: string, password: string) => Promise<void>;
+  signIn: (emailOrPhone: string, password: string) => Promise<void>;
   signUp: (email: string, password: string, fullName: string) => Promise<void>;
   signOut: () => Promise<void>;
 }
@@ -50,8 +50,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setAppUser(data as unknown as AppUser);
       } else if (currentUser) {
         console.log("App user record not found. Auto-creating public.users entry...");
-        const name = currentUser.user_metadata?.full_name || currentUser.email || "New User";
-        const email = currentUser.email || "";
+        const name = currentUser.user_metadata?.full_name || currentUser.phone || currentUser.email || "New User";
+        const email = currentUser.email || null;
+        const phone = currentUser.phone || null;
 
         const { data: newData, error: insertError } = await supabase
           .from("users")
@@ -59,6 +60,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             auth_user_id: authUserId,
             name,
             email,
+            phone,
             role: "STAFF"
           })
           .select()
@@ -101,8 +103,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => subscription.unsubscribe();
   }, []);
 
-  const signIn = async (email: string, password: string) => {
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
+  const formatPhone = (phone: string) => {
+    const cleaned = phone.replace(/\s+/g, "");
+    if (/^\d{10}$/.test(cleaned)) {
+      return `+91${cleaned}`;
+    }
+    if (/^\d{12}$/.test(cleaned) && cleaned.startsWith("91")) {
+      return `+${cleaned}`;
+    }
+    if (cleaned.startsWith("+")) {
+      return cleaned;
+    }
+    return cleaned;
+  };
+
+  const signIn = async (emailOrPhone: string, password: string) => {
+    const isEmail = emailOrPhone.includes("@");
+    const credentials = isEmail
+      ? { email: emailOrPhone, password }
+      : { phone: formatPhone(emailOrPhone), password };
+
+    const { error } = await supabase.auth.signInWithPassword(credentials);
     if (error) throw error;
   };
 

@@ -22,6 +22,7 @@ type ProductPrice = Tables<"product_prices">;
 interface PriceRow {
   product: Product;
   price: number;
+  price_per_box: number;
 }
 
 export default function PriceList() {
@@ -32,9 +33,10 @@ export default function PriceList() {
   const [createOpen, setCreateOpen] = useState(false);
   const [newName, setNewName] = useState("");
   const [effectiveDate, setEffectiveDate] = useState<Date>(new Date());
-  const [editPrices, setEditPrices] = useState<Record<string, string>>({});
+  const [editPrices, setEditPrices] = useState<Record<string, { price_per_unit: string; price_per_box: string }>>({});
   const [editingRow, setEditingRow] = useState<string | null>(null);
-  const [inlineEdit, setInlineEdit] = useState<string>("0");
+  const [inlineEditPP, setInlineEditPP] = useState<string>("0");
+  const [inlineEditCB, setInlineEditCB] = useState<string>("0");
   const [expandedListId, setExpandedListId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [isEditingNote, setIsEditingNote] = useState(false);
@@ -105,6 +107,7 @@ export default function PriceList() {
       return {
         product: p,
         price: priceEntry ? Number(priceEntry.price_per_unit) : 0,
+        price_per_box: priceEntry ? Number(priceEntry.price_per_box ?? 0) : 0,
       };
     });
 
@@ -133,10 +136,13 @@ export default function PriceList() {
   }).filter((group) => group.rows.length > 0);
 
   const handleOpenCreate = () => {
-    const prices: Record<string, string> = {};
+    const prices: Record<string, { price_per_unit: string; price_per_box: string }> = {};
     products.forEach((p) => {
       const row = priceRows.find((r) => r.product.id === p.id);
-      prices[p.id] = String(row?.price ?? 0);
+      prices[p.id] = {
+        price_per_unit: String(row?.price ?? 0),
+        price_per_box: String(row?.price_per_box ?? 0),
+      };
     });
     setEditPrices(prices);
     setNewName(`Price List ${format(new Date(), "dd MMM yyyy")}`);
@@ -164,15 +170,13 @@ export default function PriceList() {
         .single();
       if (listErr) throw listErr;
 
-      const rows: Array<{ price_list_id: string; product_id: string; buyer_category: "DEALER" | "RETAILER" | "WALKIN"; price_per_unit: number }> = [];
+      const rows: Array<{ price_list_id: string; product_id: string; price_per_unit: number; price_per_box: number }> = [];
       for (const [productId, val] of Object.entries(editPrices)) {
-        (["DEALER", "RETAILER", "WALKIN"] as const).forEach((cat) => {
-          rows.push({
-            price_list_id: newList.id,
-            product_id: productId,
-            buyer_category: cat,
-            price_per_unit: Number(val) || 0,
-          });
+        rows.push({
+          price_list_id: newList.id,
+          product_id: productId,
+          price_per_unit: Number(val.price_per_unit) || 0,
+          price_per_box: Number(val.price_per_box) || 0,
         });
       }
 
@@ -193,25 +197,28 @@ export default function PriceList() {
 
   const startInlineEdit = (row: PriceRow) => {
     setEditingRow(row.product.id);
-    setInlineEdit(String(row.price));
+    setInlineEditPP(String(row.price || 0));
+    setInlineEditCB(String(row.price_per_box || 0));
   };
 
   const saveInlineEdit = useMutation({
     mutationFn: async (productId: string) => {
       if (!activePriceList) return;
-      const cats = ["DEALER", "RETAILER", "WALKIN"] as const;
-      for (const cat of cats) {
-        const existing = activePrices.find((pp) => pp.product_id === productId && pp.buyer_category === cat);
-        if (existing) {
-          await supabase.from("product_prices").update({ price_per_unit: Number(inlineEdit) || 0 }).eq("id", existing.id);
-        } else {
-          await supabase.from("product_prices").insert({
-            price_list_id: activePriceList.id,
-            product_id: productId,
-            buyer_category: cat,
-            price_per_unit: Number(inlineEdit) || 0,
-          });
-        }
+      const existing = activePrices.find((pp) => pp.product_id === productId);
+      if (existing) {
+        const { error } = await supabase.from("product_prices").update({ 
+          price_per_unit: Number(inlineEditPP) || 0, 
+          price_per_box: Number(inlineEditCB) || 0 
+        }).eq("id", existing.id);
+        if (error) throw error;
+      } else {
+        const { error } = await supabase.from("product_prices").insert({
+          price_list_id: activePriceList.id,
+          product_id: productId,
+          price_per_unit: Number(inlineEditPP) || 0,
+          price_per_box: Number(inlineEditCB) || 0,
+        });
+        if (error) throw error;
       }
     },
     onSuccess: () => {
@@ -372,18 +379,48 @@ export default function PriceList() {
                   <thead>
                     <tr className="border-b border-border text-left">
                       <th className="px-4 py-3 text-xs font-semibold uppercase text-muted-foreground">Product</th>
-                      <th style={{ width: "150px" }} className="px-4 py-3 text-xs font-semibold uppercase text-muted-foreground text-right">Price ₹</th>
+                      <th style={{ width: "120px" }} className="px-4 py-3 text-xs font-semibold uppercase text-muted-foreground text-right">Price PP</th>
+                      <th style={{ width: "120px" }} className="px-4 py-3 text-xs font-semibold uppercase text-muted-foreground text-right">Price CB</th>
                       {canEdit && <th style={{ width: "100px" }} className="px-4 py-3 text-xs font-semibold uppercase text-muted-foreground text-right">Actions</th>}
                     </tr>
                   </thead>
                   <tbody>
                     {group.rows.map((row) => (
-                      <tr key={row.product.id} className="border-b border-border last:border-0">
+                      <tr key={row.product.id} className="border-b border-border last:border-0 align-top">
                         <td className="px-4 py-3 text-sm font-medium text-foreground">{row.product.name}</td>
                         {editingRow === row.product.id ? (
                           <>
-                            <td style={{ width: "150px" }} className="px-4 py-3 text-right">
-                              <Input type="number" className="h-8 w-24 ml-auto" value={inlineEdit} onChange={(e) => setInlineEdit(e.target.value)} />
+                            <td style={{ width: "120px" }} className="px-4 py-3 text-right">
+                              <Input 
+                                type="text" 
+                                inputMode="decimal"
+                                className="h-8 w-24 ml-auto text-right" 
+                                value={inlineEditPP} 
+                                onChange={(e) => setInlineEditPP(e.target.value)} 
+                                onFocus={(e) => {
+                                  if (inlineEditPP === "0") {
+                                    setInlineEditPP("");
+                                  } else {
+                                    e.target.select();
+                                  }
+                                }}
+                              />
+                            </td>
+                            <td style={{ width: "120px" }} className="px-4 py-3 text-right">
+                              <Input 
+                                type="text" 
+                                inputMode="decimal"
+                                className="h-8 w-24 ml-auto text-right" 
+                                value={inlineEditCB} 
+                                onChange={(e) => setInlineEditCB(e.target.value)} 
+                                onFocus={(e) => {
+                                  if (inlineEditCB === "0") {
+                                    setInlineEditCB("");
+                                  } else {
+                                    e.target.select();
+                                  }
+                                }}
+                              />
                             </td>
                             <td style={{ width: "100px" }} className="px-4 py-3 text-right">
                               <div className="flex justify-end gap-1">
@@ -398,7 +435,15 @@ export default function PriceList() {
                           </>
                         ) : (
                           <>
-                            <td style={{ width: "150px" }} className="px-4 py-3 text-sm text-right font-medium text-foreground">{row.price > 0 ? `₹${row.price}` : "—"}</td>
+                            <td style={{ width: "120px" }} className="px-4 py-3 text-sm text-right font-medium text-foreground">{row.price > 0 ? `₹${row.price}` : "—"}</td>
+                            <td style={{ width: "120px" }} className="px-4 py-3 text-sm text-right font-medium text-foreground">
+                              <div>{row.price_per_box > 0 ? `₹${row.price_per_box}` : "—"}</div>
+                              {row.product.pieces_per_box && row.product.pieces_per_box > 0 && (
+                                <div className="text-[11px] text-muted-foreground font-normal mt-0.5">
+                                  (1 X {row.product.pieces_per_box})
+                                </div>
+                              )}
+                            </td>
                             {canEdit && (
                               <td style={{ width: "100px" }} className="px-4 py-3 text-right">
                                 <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => startInlineEdit(row)}>
@@ -452,15 +497,22 @@ export default function PriceList() {
                         <tr className="border-b border-border bg-muted/30 text-left">
                           <th className="px-4 py-2 text-xs font-semibold uppercase text-muted-foreground">Product</th>
                           <th className="px-4 py-2 text-xs font-semibold uppercase text-muted-foreground">Brand</th>
-                          <th className="px-4 py-2 text-xs font-semibold uppercase text-muted-foreground text-right">Price ₹</th>
+                          <th className="px-4 py-2 text-xs font-semibold uppercase text-muted-foreground text-right">Price PP</th>
+                          <th className="px-4 py-2 text-xs font-semibold uppercase text-muted-foreground text-right">Price CB</th>
                         </tr>
                       </thead>
                       <tbody>
                         {rows.map((r) => (
-                          <tr key={r.product.id} className="border-b border-border last:border-0">
+                          <tr key={r.product.id} className="border-b border-border last:border-0 align-top">
                             <td className="px-4 py-2 text-sm text-foreground">{r.product.name}</td>
                             <td className="px-4 py-2 text-sm text-muted-foreground">{r.product.brand?.name || "—"}</td>
                             <td className="px-4 py-2 text-sm text-right">{r.price > 0 ? `₹${r.price}` : "—"}</td>
+                            <td className="px-4 py-2 text-sm text-right">
+                              <div>{r.price_per_box > 0 ? `₹${r.price_per_box}` : "—"}</div>
+                              {r.product.pieces_per_box && r.product.pieces_per_box > 0 && (
+                                <div className="text-[10px] text-muted-foreground">(1 X {r.product.pieces_per_box})</div>
+                              )}
+                            </td>
                           </tr>
                         ))}
                       </tbody>
@@ -507,7 +559,8 @@ export default function PriceList() {
                   <tr className="border-b border-border bg-muted/50 text-left">
                     <th className="px-4 py-2 text-xs font-semibold uppercase text-muted-foreground">Product</th>
                     <th className="px-4 py-2 text-xs font-semibold uppercase text-muted-foreground">Brand</th>
-                    <th className="px-4 py-2 text-xs font-semibold uppercase text-muted-foreground text-right">Price ₹</th>
+                    <th className="px-4 py-2 text-xs font-semibold uppercase text-muted-foreground text-right">Price PP</th>
+                    <th className="px-4 py-2 text-xs font-semibold uppercase text-muted-foreground text-right">Price CB</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -516,7 +569,60 @@ export default function PriceList() {
                       <td className="px-4 py-2 text-sm font-medium text-foreground">{p.name}</td>
                       <td className="px-4 py-2 text-sm text-muted-foreground">{p.brand?.name || "—"}</td>
                       <td className="px-2 py-1">
-                        <Input type="number" className="h-8 w-24 ml-auto" value={editPrices[p.id] ?? "0"} onChange={(e) => setEditPrices(prev => ({ ...prev, [p.id]: e.target.value }))} />
+                        <Input 
+                          type="text" 
+                          inputMode="decimal"
+                          className="h-8 w-24 ml-auto text-right" 
+                          value={editPrices[p.id]?.price_per_unit ?? "0"} 
+                          onChange={(e) => setEditPrices(prev => ({ 
+                            ...prev, 
+                            [p.id]: { 
+                              price_per_unit: e.target.value, 
+                              price_per_box: prev[p.id]?.price_per_box ?? "0" 
+                            } 
+                          }))} 
+                          onFocus={(e) => {
+                            if ((editPrices[p.id]?.price_per_unit ?? "0") === "0") {
+                              setEditPrices(prev => ({ 
+                                ...prev, 
+                                [p.id]: { 
+                                  ...prev[p.id], 
+                                  price_per_unit: "" 
+                                } 
+                              }));
+                            } else {
+                              e.target.select();
+                            }
+                          }}
+                        />
+                      </td>
+                      <td className="px-2 py-1">
+                        <Input 
+                          type="text" 
+                          inputMode="decimal"
+                          className="h-8 w-24 ml-auto text-right" 
+                          value={editPrices[p.id]?.price_per_box ?? "0"} 
+                          onChange={(e) => setEditPrices(prev => ({ 
+                            ...prev, 
+                            [p.id]: { 
+                              price_per_unit: prev[p.id]?.price_per_unit ?? "0", 
+                              price_per_box: e.target.value 
+                            } 
+                          }))} 
+                          onFocus={(e) => {
+                            if ((editPrices[p.id]?.price_per_box ?? "0") === "0") {
+                              setEditPrices(prev => ({ 
+                                ...prev, 
+                                [p.id]: { 
+                                  ...prev[p.id], 
+                                  price_per_box: "" 
+                                } 
+                              }));
+                            } else {
+                              e.target.select();
+                            }
+                          }}
+                        />
                       </td>
                     </tr>
                   ))}

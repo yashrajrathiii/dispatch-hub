@@ -26,7 +26,7 @@ export default function WalkinPurchase() {
   const [existingBuyer, setExistingBuyer] = useState(true);
   const [buyerId, setBuyerId] = useState("");
   const [buyerSearch, setBuyerSearch] = useState("");
-  const [newBuyer, setNewBuyer] = useState({ name: "", phone: "", category: "WALKIN" as string });
+  const [newBuyer, setNewBuyer] = useState({ name: "", phone: "" });
   const [items, setItems] = useState<ItemRow[]>([{ product_id: "", quantity: "", unit_price: "" }]);
   const [productSearches, setProductSearches] = useState<string[]>([""]);
   const [photoFile, setPhotoFile] = useState<File | null>(null);
@@ -66,16 +66,10 @@ export default function WalkinPurchase() {
 
   const selectedBuyer = buyers.find((b: any) => b.id === buyerId);
 
-  const getBuyerCategory = (): string => {
-    if (existingBuyer && selectedBuyer) return selectedBuyer.category;
-    return newBuyer.category;
-  };
-
   const getAutoPrice = (productId: string): string => {
     if (!activePriceList) return "";
-    const cat = getBuyerCategory();
     const price = activePriceList.prices.find(
-      (p: any) => p.product_id === productId && p.buyer_category === cat
+      (p: any) => p.product_id === productId
     );
     return price ? String(price.price_per_unit) : "";
   };
@@ -144,7 +138,7 @@ export default function WalkinPurchase() {
     setExistingBuyer(true);
     setBuyerId("");
     setBuyerSearch("");
-    setNewBuyer({ name: "", phone: "", category: "WALKIN" });
+    setNewBuyer({ name: "", phone: "" });
     setItems([{ product_id: "", quantity: "", unit_price: "" }]);
     setProductSearches([""]);
     setPhotoFile(null);
@@ -172,7 +166,6 @@ export default function WalkinPurchase() {
           const { data: createdBuyer, error: buyerErr } = await supabase.from("buyers").insert({
             name: newBuyer.name,
             phone: newBuyer.phone,
-            category: newBuyer.category as any,
           }).select("id").single();
           if (buyerErr) throw buyerErr;
           finalBuyerId = createdBuyer.id;
@@ -204,7 +197,7 @@ export default function WalkinPurchase() {
         bill_status: "PENDING" as any,
         photo_proof_url: photoUrl,
         notes: purchaseNote || null,
-      }).select("id").single();
+      }).select("id, walkin_number").single();
       if (purchaseErr) throw purchaseErr;
 
       // 3b. Create matching order in DELIVERED state
@@ -265,7 +258,7 @@ export default function WalkinPurchase() {
           product_id: item.product_id,
           change_type: "SOLD" as any,
           quantity_change: -Number(item.quantity),
-          note: `Walk-in sale #${purchase.id.slice(0, 8)}`,
+          note: `Walk-in sale #${purchase.walkin_number || purchase.id.slice(0, 8)}`,
           created_by_user_id: appUser.id,
         });
       }

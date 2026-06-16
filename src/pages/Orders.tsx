@@ -49,7 +49,7 @@ export default function Orders() {
   const [isNewBuyer, setIsNewBuyer] = useState(false);
   const [selectedBuyerId, setSelectedBuyerId] = useState("");
   const [buyerSearch, setBuyerSearch] = useState("");
-  const [newBuyer, setNewBuyer] = useState({ name: "", phone: "", email: "", category: "RETAILER" as "DEALER" | "RETAILER" | "WALKIN" });
+  const [newBuyer, setNewBuyer] = useState({ name: "", phone: "", email: "" });
   const [orderShopId, setOrderShopId] = useState("");
   const [deliveryDate, setDeliveryDate] = useState<Date | undefined>(undefined);
   const [orderItems, setOrderItems] = useState<Array<{ product_id: string; product_search: string; qty: string; unit_price: number; available: number | null; price_editable: boolean }>>([]);
@@ -135,16 +135,8 @@ export default function Orders() {
     return true;
   });
 
-  // Get buyer category for pricing
-  const getBuyerCategory = (): string => {
-    if (isNewBuyer) return newBuyer.category;
-    const buyer = buyers.find((b: any) => b.id === selectedBuyerId);
-    return buyer?.category || "RETAILER";
-  };
-
   const getPrice = (productId: string): number => {
-    const cat = getBuyerCategory();
-    const price = activePrices.find((p: any) => p.product_id === productId && p.buyer_category === cat);
+    const price = activePrices.find((p: any) => p.product_id === productId);
     return price ? Number(price.price_per_unit) : 0;
   };
 
@@ -207,7 +199,7 @@ export default function Orders() {
     setIsNewBuyer(false);
     setSelectedBuyerId("");
     setBuyerSearch("");
-    setNewBuyer({ name: "", phone: "", email: "", category: "RETAILER" });
+    setNewBuyer({ name: "", phone: "", email: "" });
     setOrderShopId("");
     setDeliveryDate(undefined);
     setOrderItems([]);
@@ -229,7 +221,6 @@ export default function Orders() {
             name: newBuyer.name,
             phone: newBuyer.phone || null,
             email: newBuyer.email || null,
-            category: newBuyer.category,
           })
           .select()
           .single();
@@ -368,7 +359,6 @@ export default function Orders() {
               <tr className="border-b border-gray-200 text-left">
                 <th className="px-4 py-3 text-xs font-semibold uppercase text-muted-foreground">Order #</th>
                 <th className="px-4 py-3 text-xs font-semibold uppercase text-muted-foreground">Buyer</th>
-                <th className="px-4 py-3 text-xs font-semibold uppercase text-muted-foreground">Category</th>
                 <th className="px-4 py-3 text-xs font-semibold uppercase text-muted-foreground">Godown</th>
                 <th className="px-4 py-3 text-xs font-semibold uppercase text-muted-foreground">Status</th>
                 <th className="px-4 py-3 text-xs font-semibold uppercase text-muted-foreground">Payment</th>
@@ -387,7 +377,6 @@ export default function Orders() {
                   >
                     <td className="px-4 py-3 text-sm font-mono font-medium text-foreground">#{order.order_number || order.id.slice(0, 8)}</td>
                     <td className="px-4 py-3 text-sm text-foreground">{order.buyer?.name || "—"}</td>
-                    <td className="px-4 py-3 text-sm text-muted-foreground">{order.buyer?.category || "—"}</td>
                     <td className="px-4 py-3 text-sm text-muted-foreground">{godownName}</td>
                     <td className="px-4 py-3"><StatusBadge status={statusToBadge[order.status] || "pending"} /></td>
                     <td className="px-4 py-3"><StatusBadge status={paymentToBadge[order.payment_status] || "pending"} /></td>

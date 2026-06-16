@@ -38,7 +38,7 @@ export type Database = {
       buyers: {
         Row: {
           address: string | null
-          category: Database["public"]["Enums"]["buyer_category"]
+          buyer_number: string
           created_at: string
           email: string | null
           gstin: string | null
@@ -50,7 +50,7 @@ export type Database = {
         }
         Insert: {
           address?: string | null
-          category?: Database["public"]["Enums"]["buyer_category"]
+          buyer_number?: string
           created_at?: string
           email?: string | null
           gstin?: string | null
@@ -62,7 +62,7 @@ export type Database = {
         }
         Update: {
           address?: string | null
-          category?: Database["public"]["Enums"]["buyer_category"]
+          buyer_number?: string
           created_at?: string
           email?: string | null
           gstin?: string | null
@@ -132,6 +132,7 @@ export type Database = {
         Row: {
           created_at: string
           dispatch_date: string
+          dispatch_number: string
           driver_user_id: string | null
           id: string
           order_id: string | null
@@ -144,6 +145,7 @@ export type Database = {
         Insert: {
           created_at?: string
           dispatch_date?: string
+          dispatch_number?: string
           driver_user_id?: string | null
           id?: string
           order_id?: string | null
@@ -156,6 +158,7 @@ export type Database = {
         Update: {
           created_at?: string
           dispatch_date?: string
+          dispatch_number?: string
           driver_user_id?: string | null
           id?: string
           order_id?: string | null
@@ -397,6 +400,7 @@ export type Database = {
           id: string
           notes: string | null
           notes_photo_url: string | null
+          order_number: string
           payment_status: Database["public"]["Enums"]["payment_status"]
           shop_id: string | null
           status: Database["public"]["Enums"]["order_status"]
@@ -413,6 +417,7 @@ export type Database = {
           id?: string
           notes?: string | null
           notes_photo_url?: string | null
+          order_number?: string
           payment_status?: Database["public"]["Enums"]["payment_status"]
           shop_id?: string | null
           status?: Database["public"]["Enums"]["order_status"]
@@ -429,6 +434,7 @@ export type Database = {
           id?: string
           notes?: string | null
           notes_photo_url?: string | null
+          order_number?: string
           payment_status?: Database["public"]["Enums"]["payment_status"]
           shop_id?: string | null
           status?: Database["public"]["Enums"]["order_status"]
@@ -495,24 +501,24 @@ export type Database = {
       }
       product_prices: {
         Row: {
-          buyer_category: Database["public"]["Enums"]["buyer_category"]
           id: string
           price_list_id: string
           price_per_unit: number
+          price_per_box: number | null
           product_id: string
         }
         Insert: {
-          buyer_category: Database["public"]["Enums"]["buyer_category"]
           id?: string
           price_list_id: string
           price_per_unit: number
+          price_per_box?: number | null
           product_id: string
         }
         Update: {
-          buyer_category?: Database["public"]["Enums"]["buyer_category"]
           id?: string
           price_list_id?: string
           price_per_unit?: number
+          price_per_box?: number | null
           product_id?: string
         }
         Relationships: [
@@ -647,7 +653,7 @@ export type Database = {
           assigned_shop_id: string | null
           auth_user_id: string
           created_at: string
-          email: string
+          email: string | null
           id: string
           is_active: boolean
           name: string
@@ -659,7 +665,7 @@ export type Database = {
           assigned_shop_id?: string | null
           auth_user_id: string
           created_at?: string
-          email: string
+          email?: string | null
           id?: string
           is_active?: boolean
           name: string
@@ -671,7 +677,7 @@ export type Database = {
           assigned_shop_id?: string | null
           auth_user_id?: string
           created_at?: string
-          email?: string
+          email?: string | null
           id?: string
           is_active?: boolean
           name?: string
@@ -744,6 +750,7 @@ export type Database = {
           photo_proof_url: string | null
           shop_id: string | null
           total_amount: number
+          walkin_number: string
         }
         Insert: {
           bill_status?: Database["public"]["Enums"]["bill_status"]
@@ -757,6 +764,7 @@ export type Database = {
           photo_proof_url?: string | null
           shop_id?: string | null
           total_amount?: number
+          walkin_number?: string
         }
         Update: {
           bill_status?: Database["public"]["Enums"]["bill_status"]
@@ -770,6 +778,7 @@ export type Database = {
           photo_proof_url?: string | null
           shop_id?: string | null
           total_amount?: number
+          walkin_number?: string
         }
         Relationships: [
           {
@@ -805,7 +814,7 @@ export type Database = {
     Enums: {
       app_role: "owner" | "admin" | "staff" | "accountant" | "driver"
       bill_status: "PENDING" | "BILLED" | "SENT"
-      buyer_category: "DEALER" | "RETAILER" | "WALKIN"
+
       delivery_slot: "MORNING" | "AFTERNOON" | "EVENING"
       dispatch_status: "PLANNED" | "IN_TRANSIT" | "COMPLETED" | "CANCELLED"
       dispatch_stop_status: "PENDING" | "DELIVERED" | "FAILED"
@@ -952,7 +961,7 @@ export const Constants = {
     Enums: {
       app_role: ["owner", "admin", "staff", "accountant", "driver"],
       bill_status: ["PENDING", "BILLED", "SENT"],
-      buyer_category: ["DEALER", "RETAILER", "WALKIN"],
+
       delivery_slot: ["MORNING", "AFTERNOON", "EVENING"],
       dispatch_status: ["PLANNED", "IN_TRANSIT", "COMPLETED", "CANCELLED"],
       dispatch_stop_status: ["PENDING", "DELIVERED", "FAILED"],

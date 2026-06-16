@@ -128,7 +128,7 @@ export default function Dashboard() {
                   onClick={() => navigate(`/orders/${order.id}`)}
                   className="border-b border-border last:border-0 cursor-pointer hover:bg-muted/40"
                 >
-                  <td className="px-5 py-3 text-sm font-mono font-medium text-foreground">#{order.id.slice(0, 8)}</td>
+                  <td className="px-5 py-3 text-sm font-mono font-medium text-foreground">#{order.order_number || order.id.slice(0, 8)}</td>
                   <td className="px-5 py-3 text-sm text-foreground">{order.buyer?.name || "—"}</td>
                   <td className="px-5 py-3 text-sm text-muted-foreground">{order.itemsCount}</td>
                   <td className="px-5 py-3 text-sm font-medium text-foreground">₹{order.total.toFixed(2)}</td>

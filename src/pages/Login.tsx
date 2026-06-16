@@ -8,12 +8,10 @@ import { Truck } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 export default function Login() {
-  const [isSignUp, setIsSignUp] = useState(false);
-  const [email, setEmail] = useState("");
+  const [emailOrPhone, setEmailOrPhone] = useState("");
   const [password, setPassword] = useState("");
-  const [fullName, setFullName] = useState("");
   const [loading, setLoading] = useState(false);
-  const { signIn, signUp } = useAuth();
+  const { signIn } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -21,14 +19,8 @@ export default function Login() {
     e.preventDefault();
     setLoading(true);
     try {
-      if (isSignUp) {
-        await signUp(email, password, fullName);
-        toast({ title: "Account created!", description: "You can now sign in." });
-        setIsSignUp(false);
-      } else {
-        await signIn(email, password);
-        navigate("/");
-      }
+      await signIn(emailOrPhone, password);
+      navigate("/");
     } catch (err: any) {
       toast({ title: "Error", description: err.message, variant: "destructive" });
     } finally {
@@ -45,36 +37,30 @@ export default function Login() {
           </div>
           <h1 className="text-2xl font-bold text-foreground">DispatchOps</h1>
           <p className="text-sm text-muted-foreground">
-            {isSignUp ? "Create your account" : "Sign in to your account"}
+            Sign in to your account
           </p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
-          {isSignUp && (
-            <div className="space-y-2">
-              <Label htmlFor="fullName">Full Name</Label>
-              <Input id="fullName" value={fullName} onChange={(e) => setFullName(e.target.value)} placeholder="John Doe" required />
-            </div>
-          )}
           <div className="space-y-2">
-            <Label htmlFor="email">Email</Label>
-            <Input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" required />
+            <Label htmlFor="emailOrPhone">Mobile Number or Email</Label>
+            <Input
+              id="emailOrPhone"
+              type="text"
+              value={emailOrPhone}
+              onChange={(e) => setEmailOrPhone(e.target.value)}
+              placeholder="e.g. 9876543210 or you@example.com"
+              required
+            />
           </div>
           <div className="space-y-2">
             <Label htmlFor="password">Password</Label>
             <Input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" required minLength={6} />
           </div>
           <Button type="submit" className="w-full" disabled={loading}>
-            {loading ? "Please wait..." : isSignUp ? "Create Account" : "Sign In"}
+            {loading ? "Please wait..." : "Sign In"}
           </Button>
         </form>
-
-        <p className="mt-6 text-center text-sm text-muted-foreground">
-          {isSignUp ? "Already have an account?" : "Don't have an account?"}{" "}
-          <button onClick={() => setIsSignUp(!isSignUp)} className="font-medium text-primary hover:underline">
-            {isSignUp ? "Sign in" : "Sign up"}
-          </button>
-        </p>
       </div>
     </div>
   );

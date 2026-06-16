@@ -424,7 +424,7 @@ export default function Dispatch() {
                               <TableCell>
                                 <Checkbox checked={selectedOrders.has(o.id)} onCheckedChange={() => toggleOrder(o.id)} />
                               </TableCell>
-                              <TableCell className="font-mono text-xs">{o.id.slice(0, 8)}</TableCell>
+                              <TableCell className="font-mono text-xs">{o.order_number || o.id.slice(0, 8)}</TableCell>
                               <TableCell>{o.buyer?.name}</TableCell>
                               <TableCell className="max-w-48 truncate text-xs">{o.buyer?.address || "—"}</TableCell>
                               <TableCell className="text-xs">{o.order_items?.length || 0} items</TableCell>
@@ -637,6 +637,7 @@ export default function Dispatch() {
                 <TableHeader>
                   <TableRow>
                     <TableHead>Date</TableHead>
+                    <TableHead>Dispatch #</TableHead>
                     <TableHead>Starting Godown</TableHead>
                     <TableHead>Driver</TableHead>
                     <TableHead>Stops</TableHead>
@@ -648,6 +649,7 @@ export default function Dispatch() {
                   {dispatches.map((d: any) => (
                     <TableRow key={d.id}>
                       <TableCell>{d.dispatch_date}</TableCell>
+                      <TableCell className="font-mono text-xs font-semibold">{d.dispatch_number || d.id.slice(0, 8)}</TableCell>
                       <TableCell>{d.start_shop?.name || "—"}</TableCell>
                       <TableCell>{d.driver?.name || "—"}</TableCell>
                       <TableCell>{d.dispatch_stops?.length || 0}</TableCell>
