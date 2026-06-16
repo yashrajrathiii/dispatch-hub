@@ -23,6 +23,7 @@ import Buyers from "@/pages/Buyers";
 import SettingsShops from "@/pages/SettingsShops";
 import SettingsBrands from "@/pages/SettingsBrands";
 import SettingsLocations from "@/pages/SettingsLocations";
+import SettingsUsers from "@/pages/SettingsUsers";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -81,6 +82,7 @@ const App = () => (
               <Route path="/settings/shops" element={<SettingsShops />} />
               <Route path="/settings/brands" element={<SettingsBrands />} />
               <Route path="/settings/locations" element={<SettingsLocations />} />
+              <Route path="/settings/users" element={<SettingsUsers />} />
             </Route>
 
             <Route path="*" element={<NotFound />} />

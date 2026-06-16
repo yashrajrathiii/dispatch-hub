@@ -42,6 +42,7 @@ const allItems: NavItem[] = [
       { title: "Shops", url: "/settings/shops", icon: Building2 },
       { title: "Brands", url: "/settings/brands", icon: Tag },
       { title: "Locations", url: "/settings/locations", icon: MapPin },
+      { title: "Users", url: "/settings/users", icon: Users },
     ],
   },
 ];
@@ -54,7 +55,19 @@ interface AppSidebarProps {
 export default function AppSidebar({ isOpen, onClose }: AppSidebarProps) {
   const { appUser } = useAuth();
   const role = appUser?.role ?? "STAFF";
-  const items = allItems.filter((item) => item.roles.includes(role));
+  const items = allItems
+    .map((item) => {
+      if (item.title === "Settings") {
+        return {
+          ...item,
+          children: item.children?.filter(
+            (child) => child.url !== "/settings/users" || role === "OWNER"
+          ),
+        };
+      }
+      return item;
+    })
+    .filter((item) => item.roles.includes(role));
 
   return (
     <aside className={cn(
