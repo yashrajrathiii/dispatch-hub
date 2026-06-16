@@ -319,6 +319,9 @@ export default function Dispatch() {
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
+      if (appUser?.role !== "OWNER") {
+        throw new Error("Only the owner is allowed to delete dispatches.");
+      }
       // 1. Get the dispatch stops to find linked orders
       const { data: stopsData } = await supabase
         .from("dispatch_stops")
@@ -728,7 +731,7 @@ export default function Dispatch() {
                     <TableHead>Stops</TableHead>
                     <TableHead>Distance</TableHead>
                     <TableHead>Status</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
+                    {appUser?.role === "OWNER" && <TableHead className="text-right">Actions</TableHead>}
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -747,16 +750,18 @@ export default function Dispatch() {
                       <TableCell>
                         <Badge className={statusColors[d.status] || ""}>{d.status}</Badge>
                       </TableCell>
-                      <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
-                        <Button
-                          size="icon"
-                          variant="ghost"
-                          className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
-                          onClick={() => setDeleteId(d.id)}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </TableCell>
+                      {appUser?.role === "OWNER" && (
+                        <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
+                            onClick={() => setDeleteId(d.id)}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </TableCell>
+                      )}
                     </TableRow>
                   ))}
                 </TableBody>
