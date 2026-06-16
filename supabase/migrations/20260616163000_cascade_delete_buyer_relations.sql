@@ -1,7 +1,9 @@
--- Add DELETE policies for buyers and orders
+-- Drop policies if they exist, then create them to avoid conflicts
+DROP POLICY IF EXISTS "Auth delete buyers" ON public.buyers;
 CREATE POLICY "Auth delete buyers" ON public.buyers 
   FOR DELETE TO authenticated USING (true);
 
+DROP POLICY IF EXISTS "Auth delete orders" ON public.orders;
 CREATE POLICY "Auth delete orders" ON public.orders 
   FOR DELETE TO authenticated USING (true);
 
