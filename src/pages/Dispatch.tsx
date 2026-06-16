@@ -13,8 +13,10 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { format } from "date-fns";
-import { CalendarIcon, Plus, MapPin, Route, Truck, Warehouse, Eye, ChevronDown, ChevronUp, GripVertical } from "lucide-react";
+import { CalendarIcon, Plus, MapPin, Route, Truck, Warehouse, Eye, ChevronDown, ChevronUp, GripVertical, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { MapContainer, TileLayer, Marker, Popup, Polyline, useMap } from "react-leaflet";
 import L from "leaflet";
@@ -70,6 +72,8 @@ export default function Dispatch() {
 
   const [showPlanner, setShowPlanner] = useState(false);
   const [step, setStep] = useState(1);
+  const [selectedDispatchId, setSelectedDispatchId] = useState<string | null>(null);
+  const [deleteId, setDeleteId] = useState<string | null>(null);
   const [date, setDate] = useState<Date>(new Date());
   const [godownId, setGodownId] = useState("");
   const [selectedOrders, setSelectedOrders] = useState<Set<string>>(new Set());
@@ -123,6 +127,33 @@ export default function Dispatch() {
         .limit(50);
       return data || [];
     },
+  });
+
+  const { data: selectedDispatch, isLoading: isLoadingDetails } = useQuery({
+    queryKey: ["dispatch-details", selectedDispatchId],
+    queryFn: async () => {
+      if (!selectedDispatchId) return null;
+      const { data, error } = await supabase
+        .from("dispatches")
+        .select(`
+          *,
+          start_shop:shops(name, latitude, longitude),
+          driver:users(name),
+          dispatch_stops(
+            *,
+            buyer:buyers(name, address, phone)
+          )
+        `)
+        .eq("id", selectedDispatchId)
+        .single();
+      if (error) throw error;
+
+      if (data && data.dispatch_stops) {
+        data.dispatch_stops.sort((a: any, b: any) => a.stop_sequence - b.stop_sequence);
+      }
+      return data;
+    },
+    enabled: !!selectedDispatchId,
   });
 
   // When godown selected, center map
@@ -259,7 +290,7 @@ export default function Dispatch() {
         latitude: s.lat,
         longitude: s.lng,
         stop_sequence: i + 1,
-        items_summary: { text: s.items_summary },
+        items_summary: { text: s.items_summary, order_id: s.order_id },
         status: "PENDING" as const,
       }));
 
@@ -283,6 +314,60 @@ export default function Dispatch() {
     },
     onError: (e: any) => {
       toast({ title: "Error", description: e.message, variant: "destructive" });
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async (id: string) => {
+      // 1. Get the dispatch stops to find linked orders
+      const { data: stopsData } = await supabase
+        .from("dispatch_stops")
+        .select("items_summary, buyer_id")
+        .eq("dispatch_id", id);
+
+      if (stopsData && stopsData.length > 0) {
+        // Collect order ids from items_summary JSON
+        const orderIds: string[] = [];
+        stopsData.forEach((s: any) => {
+          if (s.items_summary && typeof s.items_summary === "object" && (s.items_summary as any).order_id) {
+            orderIds.push((s.items_summary as any).order_id);
+          }
+        });
+
+        // 2. Revert those orders back to CONFIRMED
+        if (orderIds.length > 0) {
+          await supabase
+            .from("orders")
+            .update({ status: "CONFIRMED" as const })
+            .in("id", orderIds);
+        } else {
+          // Fallback: update any DISPATCHED orders for these buyers
+          const buyerIds = stopsData.map((s: any) => s.buyer_id).filter(Boolean);
+          if (buyerIds.length > 0) {
+            await supabase
+              .from("orders")
+              .update({ status: "CONFIRMED" as const })
+              .eq("status", "DISPATCHED")
+              .in("buyer_id", buyerIds);
+          }
+        }
+      }
+
+      // 3. Delete dispatch (stops will cascade delete)
+      const { error } = await supabase
+        .from("dispatches")
+        .delete()
+        .eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast({ title: "Success", description: "Dispatch deleted successfully and linked orders reverted to Confirmed." });
+      queryClient.invalidateQueries({ queryKey: ["dispatches"] });
+      queryClient.invalidateQueries({ queryKey: ["confirmed-orders"] });
+      setDeleteId(null);
+    },
+    onError: (e: any) => {
+      toast({ title: "Error deleting dispatch", description: e.message, variant: "destructive" });
     },
   });
 
@@ -643,11 +728,16 @@ export default function Dispatch() {
                     <TableHead>Stops</TableHead>
                     <TableHead>Distance</TableHead>
                     <TableHead>Status</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {dispatches.map((d: any) => (
-                    <TableRow key={d.id}>
+                    <TableRow 
+                      key={d.id}
+                      className="cursor-pointer hover:bg-muted/50 transition-colors"
+                      onClick={() => setSelectedDispatchId(d.id)}
+                    >
                       <TableCell>{d.dispatch_date}</TableCell>
                       <TableCell className="font-mono text-xs font-semibold">{d.dispatch_number || d.id.slice(0, 8)}</TableCell>
                       <TableCell>{d.start_shop?.name || "—"}</TableCell>
@@ -657,6 +747,16 @@ export default function Dispatch() {
                       <TableCell>
                         <Badge className={statusColors[d.status] || ""}>{d.status}</Badge>
                       </TableCell>
+                      <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
+                          onClick={() => setDeleteId(d.id)}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
@@ -665,6 +765,136 @@ export default function Dispatch() {
           )}
         </CardContent>
       </Card>
+
+      {/* Dispatch Details Dialog */}
+      <Dialog open={!!selectedDispatchId} onOpenChange={(open) => !open && setSelectedDispatchId(null)}>
+        <DialogContent className="sm:max-w-2xl max-h-[85vh] overflow-y-auto border border-gray-200">
+          <DialogHeader>
+            <DialogTitle className="text-lg font-bold flex items-center justify-between">
+              <span>Dispatch Details</span>
+              {selectedDispatch && (
+                <Badge className={cn("ml-2", statusColors[selectedDispatch.status] || "")}>
+                  {selectedDispatch.status}
+                </Badge>
+              )}
+            </DialogTitle>
+          </DialogHeader>
+
+          {isLoadingDetails ? (
+            <div className="flex items-center justify-center py-12">
+              <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+            </div>
+          ) : !selectedDispatch ? (
+            <p className="text-center text-muted-foreground py-6">Could not load dispatch details.</p>
+          ) : (
+            <div className="space-y-6">
+              {/* Summary Cards */}
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-4 p-4 rounded-lg bg-muted/40 border border-gray-100">
+                <div>
+                  <span className="text-xs text-muted-foreground block">Dispatch #</span>
+                  <span className="font-mono text-sm font-semibold">{selectedDispatch.dispatch_number || selectedDispatch.id.slice(0, 8)}</span>
+                </div>
+                <div>
+                  <span className="text-xs text-muted-foreground block">Date</span>
+                  <span className="text-sm font-semibold">{selectedDispatch.dispatch_date}</span>
+                </div>
+                <div>
+                  <span className="text-xs text-muted-foreground block">Starting Godown</span>
+                  <span className="text-sm font-semibold">{selectedDispatch.start_shop?.name || "—"}</span>
+                </div>
+                <div>
+                  <span className="text-xs text-muted-foreground block">Driver</span>
+                  <span className="text-sm font-semibold">{selectedDispatch.driver?.name || "—"}</span>
+                </div>
+                <div>
+                  <span className="text-xs text-muted-foreground block">Vehicle ID</span>
+                  <span className="text-sm font-semibold font-mono">{selectedDispatch.vehicle_id || "—"}</span>
+                </div>
+                <div>
+                  <span className="text-xs text-muted-foreground block">Distance / Duration</span>
+                  <span className="text-sm font-semibold">
+                    {selectedDispatch.total_distance_km ? `${selectedDispatch.total_distance_km} km` : "—"}
+                    {selectedDispatch.total_duration_min ? ` (${selectedDispatch.total_duration_min} mins)` : ""}
+                  </span>
+                </div>
+              </div>
+
+              {/* Stops Timeline */}
+              <div className="space-y-4">
+                <h4 className="font-semibold text-sm border-b pb-2">Stops & Route ({selectedDispatch.dispatch_stops?.length || 0})</h4>
+                
+                {(!selectedDispatch.dispatch_stops || selectedDispatch.dispatch_stops.length === 0) ? (
+                  <p className="text-sm text-muted-foreground py-4 text-center">No stops planned for this dispatch.</p>
+                ) : (
+                  <div className="relative border-l-2 border-muted pl-6 ml-4 space-y-6">
+                    {selectedDispatch.dispatch_stops.map((stop: any, index: number) => (
+                      <div key={stop.id} className="relative">
+                        {/* Timeline Marker */}
+                        <div className="absolute -left-[37px] top-1 flex h-7 w-7 items-center justify-center rounded-full bg-background border-2 border-primary font-bold text-xs text-primary shadow-sm">
+                          {stop.stop_sequence}
+                        </div>
+                        
+                        <div className="space-y-1">
+                          <div className="flex items-center justify-between gap-2">
+                            <h5 className="font-semibold text-sm text-foreground">{stop.buyer?.name || "Unknown Buyer"}</h5>
+                            <Badge variant="outline" className={cn(
+                              stop.status === "DELIVERED" && "bg-green-50 text-green-700 border-green-200",
+                              stop.status === "FAILED" && "bg-red-50 text-red-700 border-red-200",
+                              stop.status === "PENDING" && "bg-amber-50 text-amber-700 border-amber-200"
+                            )}>
+                              {stop.status}
+                            </Badge>
+                          </div>
+                          
+                          <p className="text-xs text-muted-foreground flex items-center gap-1">
+                            <MapPin className="h-3 w-3 shrink-0" />
+                            {stop.address || "—"}
+                          </p>
+                          
+                          {stop.items_summary?.text && (
+                            <p className="text-xs font-medium bg-muted/50 p-2 rounded border border-gray-100 mt-1">
+                              <span className="text-muted-foreground block text-[10px] uppercase font-bold tracking-wider mb-0.5">Items</span>
+                              {stop.items_summary.text}
+                            </p>
+                          )}
+                          
+                          {stop.completed_at && (
+                            <p className="text-[10px] text-muted-foreground pt-1">
+                              Delivered at: {new Date(stop.completed_at).toLocaleString()}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirmation Alert */}
+      <AlertDialog open={!!deleteId} onOpenChange={(open) => !open && setDeleteId(null)}>
+        <AlertDialogContent className="border border-gray-200">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Dispatch</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete this dispatch? The linked orders will be set back to "CONFIRMED" status so they can be rescheduled. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => deleteId && deleteMutation.mutate(deleteId)}
+              disabled={deleteMutation.isPending}
+            >
+              {deleteMutation.isPending ? "Deleting..." : "Delete"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
