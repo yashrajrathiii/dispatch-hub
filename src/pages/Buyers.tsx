@@ -101,8 +101,10 @@ export default function Buyers() {
       queryClient.invalidateQueries({ queryKey: ["buyers-all"] });
       queryClient.invalidateQueries({ queryKey: ["buyers-active"] });
       queryClient.invalidateQueries({ queryKey: ["buyers"] });
+      queryClient.invalidateQueries({ queryKey: ["orders"] });
+      queryClient.invalidateQueries({ queryKey: ["dispatches"] });
       setDeleteId(null);
-      toast({ title: "Buyer removed successfully" });
+      toast({ title: "Buyer removed successfully", description: "All associated orders and dispatch stops have been deleted." });
     },
     onError: (err: any) => {
       toast({ title: "Error removing buyer", description: err.message, variant: "destructive" });
