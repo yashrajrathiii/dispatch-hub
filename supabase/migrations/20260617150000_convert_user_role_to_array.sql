@@ -10,6 +10,9 @@ ALTER TABLE public.users ALTER COLUMN role TYPE public.user_role[] USING ARRAY[r
 -- Set default value
 ALTER TABLE public.users ALTER COLUMN role SET DEFAULT '{STAFF}'::public.user_role[];
 
+-- Drop NOT NULL constraint on profiles.email to allow phone-only registrations
+ALTER TABLE public.profiles ALTER COLUMN email DROP NOT NULL;
+
 -- Update handle_new_user trigger function
 CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS TRIGGER
@@ -21,8 +24,14 @@ BEGIN
   INSERT INTO public.profiles (id, email, full_name)
   VALUES (NEW.id, NEW.email, COALESCE(NEW.raw_user_meta_data->>'full_name', ''));
   
-  INSERT INTO public.users (auth_user_id, name, email, role)
-  VALUES (NEW.id, COALESCE(NEW.raw_user_meta_data->>'full_name', NEW.email), NEW.email, ARRAY['STAFF']::public.user_role[]);
+  INSERT INTO public.users (auth_user_id, name, email, phone, role)
+  VALUES (
+    NEW.id, 
+    COALESCE(NEW.raw_user_meta_data->>'full_name', NEW.email, NEW.phone, 'New User'), 
+    NEW.email, 
+    NEW.phone, 
+    ARRAY['STAFF']::public.user_role[]
+  );
   
   RETURN NEW;
 END;
