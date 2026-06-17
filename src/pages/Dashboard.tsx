@@ -24,7 +24,7 @@ export default function Dashboard() {
 
   const { data: stats } = useQuery({
     queryKey: ["dashboard-stats", today],
-    enabled: !!appUser && appUser.role !== "SALESMAN",
+    enabled: !!appUser && !appUser.role.includes("SALESMAN"),
     queryFn: async () => {
       const [products, ordersActive, ordersPending, dispatchesToday, dispatchesTransit, buyersActive, buyersNew] = await Promise.all([
         supabase.from("products").select("id", { count: "exact", head: true }).eq("is_active", true),
@@ -57,7 +57,7 @@ export default function Dashboard() {
         .order("created_at", { ascending: false })
         .limit(10);
 
-      if (appUser?.role === "SALESMAN") {
+      if (appUser?.role.includes("SALESMAN")) {
         query = query.eq("created_by_user_id", appUser.id);
       }
 
@@ -85,7 +85,7 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-6">
-      {appUser?.role !== "SALESMAN" && (
+      {!appUser?.role.includes("SALESMAN") && (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {cards.map((stat) => (
             <button

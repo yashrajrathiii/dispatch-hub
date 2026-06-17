@@ -10,7 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { useToast } from "@/hooks/use-toast";
-import { Package, CheckCircle, XCircle, Plus, MoreHorizontal, AlertTriangle, Pencil, History, Trash2 } from "lucide-react";
+import { Package, CheckCircle, XCircle, Plus, MoreHorizontal, AlertTriangle, Pencil, History, Trash2, Search, Filter } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 function StockBadge({ qty }: { qty: number }) {
@@ -34,6 +34,7 @@ function changeTypeBadge(type: string) {
     RECEIVED: "bg-success/10 text-success",
     SOLD: "bg-destructive/10 text-destructive",
     ADJUSTED: "bg-warning/10 text-warning",
+    DISPATCHED: "bg-blue-500/10 text-blue-500",
   };
   return (
     <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold ${map[type] || "bg-muted text-muted-foreground"}`}>
@@ -55,6 +56,7 @@ export default function Inventory() {
   const [editModal, setEditModal] = useState<{ open: boolean; item: any | null }>({ open: false, item: null });
   const [editPpb, setEditPpb] = useState("");
   const [editQtyChange, setEditQtyChange] = useState("");
+  const [editQtyChangeCb, setEditQtyChangeCb] = useState("");
   const [editNote, setEditNote] = useState("");
 
   // History panel
@@ -63,6 +65,12 @@ export default function Inventory() {
   // Add product
   const [addModal, setAddModal] = useState(false);
   const [newProduct, setNewProduct] = useState({ name: "", brand_id: "", unit: "pcs", shop_id: "", quantity: "0", pieces_per_box: "" });
+
+  // Global logs modal & filters
+  const [logsModalOpen, setLogsModalOpen] = useState(false);
+  const [logSearch, setLogSearch] = useState("");
+  const [logShopFilter, setLogShopFilter] = useState("all");
+  const [logTypeFilter, setLogTypeFilter] = useState("all");
 
   const { data: inventory = [], isLoading } = useQuery({
     queryKey: ["inventory"],
@@ -108,11 +116,72 @@ export default function Inventory() {
     },
   });
 
+  // Global activity logs query
+  const { data: globalLogs = [], isLoading: isLoadingLogs } = useQuery({
+    queryKey: ["global-inventory-logs"],
+    enabled: logsModalOpen,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("inventory_logs")
+        .select("*, product:products(name), shop:shops(name), user:users!inventory_logs_created_by_user_id_fkey(name)")
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      return data || [];
+    },
+  });
+
+  // Global logs in-memory filtering
+  const filteredLogs = globalLogs.filter((log: any) => {
+    if (logShopFilter !== "all" && log.shop_id !== logShopFilter) return false;
+    if (logTypeFilter !== "all" && log.change_type !== logTypeFilter) return false;
+    if (logSearch) {
+      const s = logSearch.toLowerCase();
+      const productName = log.product?.name?.toLowerCase() || "";
+      const userName = log.user?.name?.toLowerCase() || "";
+      const note = log.note?.toLowerCase() || "";
+      if (!productName.includes(s) && !userName.includes(s) && !note.includes(s)) {
+        return false;
+      }
+    }
+    return true;
+  });
+
   const openEditModal = (item: any) => {
     setEditPpb(item.product?.pieces_per_box?.toString() || "");
     setEditQtyChange("");
+    setEditQtyChangeCb("");
     setEditNote("");
     setEditModal({ open: true, item });
+  };
+
+  const handleQtyChange = (val: string) => {
+    setEditQtyChange(val);
+    const ppbNum = Number(editPpb);
+    if (ppbNum > 0 && val) {
+      setEditQtyChangeCb((Number(val) / ppbNum).toFixed(2));
+    } else {
+      setEditQtyChangeCb("");
+    }
+  };
+
+  const handleQtyChangeCb = (val: string) => {
+    setEditQtyChangeCb(val);
+    const ppbNum = Number(editPpb);
+    if (ppbNum > 0 && val) {
+      setEditQtyChange(Math.round(Number(val) * ppbNum).toString());
+    } else {
+      setEditQtyChange("");
+    }
+  };
+
+  const handlePpbChange = (val: string) => {
+    setEditPpb(val);
+    const ppbNum = Number(val);
+    if (ppbNum > 0 && editQtyChange) {
+      setEditQtyChangeCb((Number(editQtyChange) / ppbNum).toFixed(2));
+    } else {
+      setEditQtyChangeCb("");
+    }
   };
 
   const saveEdit = useMutation({
@@ -273,11 +342,26 @@ export default function Inventory() {
   const inStockCount = filtered.filter((i: any) => Number(i.quantity) > 0).length;
   const outOfStock = filtered.filter((i: any) => Number(i.quantity) === 0).length;
 
-  const canAdd = appUser?.role === "OWNER" || appUser?.role === "ADMIN";
+  const canAdd = appUser?.role.includes("OWNER") || appUser?.role.includes("ADMIN");
 
   return (
     <TooltipProvider>
       <div className="space-y-6">
+        {/* Header and Action */}
+        <div className="flex flex-wrap items-center justify-between gap-4 border-b border-gray-100 pb-4">
+          <div>
+            <h2 className="text-xl font-bold text-foreground">Inventory</h2>
+            <p className="text-sm text-muted-foreground">Monitor and manage product stock levels across godowns</p>
+          </div>
+          {appUser?.role.includes("OWNER") && (
+            <div className="flex items-center gap-3 ml-auto">
+              <Button onClick={() => setLogsModalOpen(true)} className="gap-2 bg-secondary hover:bg-secondary/90 text-secondary-foreground" variant="outline">
+                <History className="h-4 w-4" /> Logs
+              </Button>
+            </div>
+          )}
+        </div>
+
         {/* Summary Cards */}
         <div className="grid gap-4 sm:grid-cols-3">
           <div className="rounded-lg border border-border bg-card p-5 shadow-sm">
@@ -396,7 +480,7 @@ export default function Inventory() {
                             <DropdownMenuItem onClick={() => setHistoryPanel({ open: true, item })}>
                               <History className="mr-2 h-4 w-4" /> Stock History
                             </DropdownMenuItem>
-                            {appUser?.role === "OWNER" && (
+                            {appUser?.role.includes("OWNER") && (
                               <DropdownMenuItem
                                 onClick={() => {
                                   if (confirm(`Are you sure you want to delete "${item.product?.name}"? This will remove it from inventory and price lists.`)) {
@@ -429,13 +513,27 @@ export default function Inventory() {
             <div className="space-y-4 py-2">
               <div className="space-y-2">
                 <Label>Pieces per Box (CB)</Label>
-                <Input type="number" value={editPpb} onChange={(e) => setEditPpb(e.target.value)} placeholder="e.g. 20" />
+                <Input type="number" value={editPpb} onChange={(e) => handlePpbChange(e.target.value)} placeholder="e.g. 20" />
               </div>
-              <div className="space-y-2">
-                <Label>Quantity Change in Pieces</Label>
-                <Input type="number" value={editQtyChange} onChange={(e) => setEditQtyChange(e.target.value)} placeholder="Enter pieces to add or remove" />
-                <p className="text-xs text-muted-foreground">Positive to add, negative to remove. Leave blank to only update Pcs/Box.</p>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Quantity Change in Pieces</Label>
+                  <Input type="number" value={editQtyChange} onChange={(e) => handleQtyChange(e.target.value)} placeholder="e.g. 50 or -20" />
+                </div>
+                <div className="space-y-2">
+                  <Label>Quantity Change in Boxes (CB)</Label>
+                  <Input 
+                    type="number" 
+                    value={editQtyChangeCb} 
+                    onChange={(e) => handleQtyChangeCb(e.target.value)} 
+                    placeholder={editPpb ? "e.g. 2.5 or -1" : "Set Pcs/Box first"}
+                    disabled={!editPpb || Number(editPpb) <= 0}
+                  />
+                </div>
               </div>
+              <p className="text-xs text-muted-foreground">
+                Positive to add, negative to remove. Changing either field updates the other automatically based on Pieces per Box.
+              </p>
               <div className="space-y-2">
                 <Label>Note</Label>
                 <Input value={editNote} onChange={(e) => setEditNote(e.target.value)} placeholder="Reason for adjustment (optional)..." />
@@ -528,6 +626,115 @@ export default function Inventory() {
               <Button onClick={() => addProduct.mutate()} disabled={!newProduct.name || addProduct.isPending}>
                 {addProduct.isPending ? "Adding..." : "Add Product"}
               </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Global Activity Logs Modal */}
+        <Dialog open={logsModalOpen} onOpenChange={setLogsModalOpen}>
+          <DialogContent className="max-w-4xl max-h-[85vh] flex flex-col">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <History className="h-5 w-5 text-primary" /> Inventory Activity Logs
+              </DialogTitle>
+              <p className="text-sm text-muted-foreground">Review history of stock changes made by staff and other users.</p>
+            </DialogHeader>
+
+            {/* Filters */}
+            <div className="flex flex-wrap items-center gap-3 my-3">
+              <div className="relative flex-1 min-w-[200px]">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  className="pl-9 h-9"
+                  placeholder="Search by product, user, or note..."
+                  value={logSearch}
+                  onChange={(e) => setLogSearch(e.target.value)}
+                />
+              </div>
+              <Select value={logShopFilter} onValueChange={setLogShopFilter}>
+                <SelectTrigger className="w-44 h-9"><SelectValue placeholder="All Godowns" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Godowns</SelectItem>
+                  {godowns.map((s: any) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+              <Select value={logTypeFilter} onValueChange={setLogTypeFilter}>
+                <SelectTrigger className="w-40 h-9"><SelectValue placeholder="All Actions" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Actions</SelectItem>
+                  <SelectItem value="RECEIVED">RECEIVED</SelectItem>
+                  <SelectItem value="SOLD">SOLD</SelectItem>
+                  <SelectItem value="ADJUSTED">ADJUSTED</SelectItem>
+                  <SelectItem value="DISPATCHED">DISPATCHED</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Table */}
+            <div className="flex-1 overflow-y-auto min-h-[300px] border border-border rounded-md">
+              {isLoadingLogs ? (
+                <div className="flex items-center justify-center py-20">
+                  <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+                </div>
+              ) : filteredLogs.length === 0 ? (
+                <div className="py-20 text-center text-muted-foreground">No matching activity logs found.</div>
+              ) : (
+                <table className="w-full text-sm">
+                  <thead className="sticky top-0 bg-card z-10 border-b border-border">
+                    <tr className="text-left bg-muted/40 text-muted-foreground font-semibold">
+                      <th className="px-4 py-2 text-xs uppercase">Date & Time</th>
+                      <th className="px-4 py-2 text-xs uppercase">User</th>
+                      <th className="px-4 py-2 text-xs uppercase">Action</th>
+                      <th className="px-4 py-2 text-xs uppercase">Product</th>
+                      <th className="px-4 py-2 text-xs uppercase">Godown</th>
+                      <th className="px-4 py-2 text-xs uppercase text-right">Change</th>
+                      <th className="px-4 py-2 text-xs uppercase">Note</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredLogs.map((log: any) => {
+                      const change = Number(log.quantity_change);
+                      return (
+                        <tr key={log.id} className="border-b border-border last:border-0 hover:bg-muted/10 transition-colors">
+                          <td className="px-4 py-2.5 text-xs text-muted-foreground whitespace-nowrap">
+                            {new Date(log.created_at).toLocaleString("en-IN", {
+                              timeZone: "Asia/Kolkata",
+                              day: "2-digit",
+                              month: "short",
+                              year: "numeric",
+                              hour: "numeric",
+                              minute: "2-digit",
+                              hour12: true
+                            })}
+                          </td>
+                          <td className="px-4 py-2.5 font-medium text-foreground whitespace-nowrap">
+                            {log.user?.name || "System"}
+                          </td>
+                          <td className="px-4 py-2.5 whitespace-nowrap">
+                            {changeTypeBadge(log.change_type)}
+                          </td>
+                          <td className="px-4 py-2.5 font-medium text-foreground max-w-[150px] truncate" title={log.product?.name}>
+                            {log.product?.name || "—"}
+                          </td>
+                          <td className="px-4 py-2.5 text-muted-foreground truncate" title={log.shop?.name}>
+                            {log.shop?.name || "—"}
+                          </td>
+                          <td className={`px-4 py-2.5 text-right font-semibold whitespace-nowrap ${change >= 0 ? "text-success" : "text-destructive"}`}>
+                            {change > 0 ? `+${change}` : change} pcs
+                          </td>
+                          <td className="px-4 py-2.5 text-xs text-muted-foreground italic max-w-[150px] truncate" title={log.note || ""}>
+                            {log.note || "—"}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              )}
+            </div>
+
+            <DialogFooter className="mt-4">
+              <Button onClick={() => setLogsModalOpen(false)}>Close</Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>

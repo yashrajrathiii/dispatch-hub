@@ -231,7 +231,7 @@ export default function SettingsShops() {
           </div>
           <DialogFooter className="flex justify-between items-center sm:justify-between w-full">
             <div>
-              {modal.editId && appUser?.role === "OWNER" && (
+              {modal.editId && appUser?.role.includes("OWNER") && (
                 <Button
                   variant="destructive"
                   onClick={() => {

@@ -112,7 +112,7 @@ export default function Dispatch() {
   const { data: drivers = [] } = useQuery({
     queryKey: ["drivers"],
     queryFn: async () => {
-      const { data } = await supabase.from("users").select("*").eq("role", "DRIVER").eq("is_active", true);
+      const { data } = await supabase.from("users").select("*").contains("role", ["DRIVER"]).eq("is_active", true);
       return data || [];
     },
   });
@@ -319,7 +319,7 @@ export default function Dispatch() {
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
-      if (appUser?.role !== "OWNER") {
+      if (!appUser?.role.includes("OWNER")) {
         throw new Error("Only the owner is allowed to delete dispatches.");
       }
       // 1. Get the dispatch stops to find linked orders
@@ -731,7 +731,7 @@ export default function Dispatch() {
                     <TableHead>Stops</TableHead>
                     <TableHead>Distance</TableHead>
                     <TableHead>Status</TableHead>
-                    {appUser?.role === "OWNER" && <TableHead className="text-right">Actions</TableHead>}
+                    {appUser?.role.includes("OWNER") && <TableHead className="text-right">Actions</TableHead>}
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -750,7 +750,7 @@ export default function Dispatch() {
                       <TableCell>
                         <Badge className={statusColors[d.status] || ""}>{d.status}</Badge>
                       </TableCell>
-                      {appUser?.role === "OWNER" && (
+                      {appUser?.role.includes("OWNER") && (
                         <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
                           <Button
                             size="icon"

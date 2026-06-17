@@ -266,8 +266,7 @@ export default function WalkinPurchase() {
       // 6. Get shop name for notification
       const { data: shop } = await supabase.from("shops").select("name").eq("id", shopId).maybeSingle();
 
-      // 7. Notify all accountants
-      const { data: accountants } = await supabase.from("users").select("id").eq("role", "ACCOUNTANT").eq("is_active", true);
+      const { data: accountants } = await supabase.from("users").select("id").contains("role", ["ACCOUNTANT"]).eq("is_active", true);
       if (accountants && accountants.length > 0) {
         const notifications = accountants.map((acc: any) => ({
           recipient_user_id: acc.id,

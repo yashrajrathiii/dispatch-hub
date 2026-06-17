@@ -10,7 +10,7 @@ interface AppUser {
   name: string;
   email: string | null;
   phone: string | null;
-  role: AppRole;
+  role: AppRole[];
   assigned_shop_id: string | null;
   is_active: boolean;
 }
@@ -47,7 +47,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
 
       if (data) {
-        setAppUser(data as unknown as AppUser);
+        const roles = Array.isArray(data.role)
+          ? data.role
+              .map((r: any) => {
+                if (typeof r === "string") return r.toUpperCase() as AppRole;
+                if (Array.isArray(r)) return String(r[0] || "").toUpperCase() as AppRole;
+                return String(r || "").toUpperCase() as AppRole;
+              })
+              .filter((r) => r && r !== "NULL")
+          : typeof data.role === "string"
+            ? [(data.role as string).toUpperCase() as AppRole]
+            : ["STAFF" as AppRole];
+        setAppUser({
+          ...data,
+          role: roles,
+        } as unknown as AppUser);
       } else if (currentUser) {
         console.log("App user record not found. Auto-creating public.users entry...");
         const name = currentUser.user_metadata?.full_name || currentUser.phone || currentUser.email || "New User";
@@ -61,7 +75,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             name,
             email,
             phone,
-            role: "STAFF"
+            role: "{STAFF}" as any
           })
           .select()
           .single();
@@ -69,7 +83,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (insertError) {
           console.error("Error auto-creating app user:", insertError);
         } else if (newData) {
-          setAppUser(newData as unknown as AppUser);
+          const roles = Array.isArray(newData.role)
+            ? newData.role
+                .map((r: any) => {
+                  if (typeof r === "string") return r.toUpperCase() as AppRole;
+                  if (Array.isArray(r)) return String(r[0] || "").toUpperCase() as AppRole;
+                  return String(r || "").toUpperCase() as AppRole;
+                })
+                .filter((r) => r && r !== "NULL")
+            : typeof newData.role === "string"
+              ? [(newData.role as string).toUpperCase() as AppRole]
+              : ["STAFF" as AppRole];
+          setAppUser({
+            ...newData,
+            role: roles,
+          } as unknown as AppUser);
         }
       }
     } catch (e) {

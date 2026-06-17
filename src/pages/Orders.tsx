@@ -67,7 +67,7 @@ export default function Orders() {
         .select("*, buyer:buyers(*), shop:shops(*), created_by:users!orders_created_by_user_id_fkey(*)")
         .order("created_at", { ascending: false });
 
-      if (appUser?.role === "SALESMAN") {
+      if (appUser?.role.includes("SALESMAN")) {
         query = query.eq("created_by_user_id", appUser.id);
       }
 
@@ -313,7 +313,7 @@ export default function Orders() {
     onError: (err: any) => toast({ title: "Error", description: err.message, variant: "destructive" }),
   });
 
-  const canCreate = appUser?.role === "OWNER" || appUser?.role === "ADMIN" || appUser?.role === "STAFF" || appUser?.role === "SALESMAN";
+  const canCreate = appUser?.role.includes("OWNER") || appUser?.role.includes("ADMIN") || appUser?.role.includes("STAFF") || appUser?.role.includes("SALESMAN");
 
   return (
     <div className="space-y-6">

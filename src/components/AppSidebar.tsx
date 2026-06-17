@@ -56,7 +56,7 @@ interface AppSidebarProps {
 
 export default function AppSidebar({ isOpen, onClose }: AppSidebarProps) {
   const { appUser } = useAuth();
-  const role = appUser?.role ?? "STAFF";
+  const roles = appUser?.role ?? ["STAFF"];
   const items = allItems
     .map((item) => {
       if (item.title === "Settings") {
@@ -64,14 +64,14 @@ export default function AppSidebar({ isOpen, onClose }: AppSidebarProps) {
           ...item,
           children: item.children?.filter((child) => {
             if (child.url === "/settings/users") {
-              return role === "OWNER";
+              return roles.includes("OWNER");
             }
             if (
               child.url === "/settings/shops" ||
               child.url === "/settings/brands" ||
               child.url === "/settings/locations"
             ) {
-              return role === "OWNER" || role === "ADMIN";
+              return roles.includes("OWNER") || roles.includes("ADMIN");
             }
             return true;
           }),
@@ -79,7 +79,7 @@ export default function AppSidebar({ isOpen, onClose }: AppSidebarProps) {
       }
       return item;
     })
-    .filter((item) => item.roles.includes(role));
+    .filter((item) => item.roles.some((r) => roles.includes(r)));
 
   return (
     <aside className={cn(

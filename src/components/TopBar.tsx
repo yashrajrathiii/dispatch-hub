@@ -54,7 +54,11 @@ export default function TopBar({ title, onMenuClick }: Props) {
           </Avatar>
           <div className="hidden sm:block">
             <p className="text-sm font-medium text-foreground leading-none">{appUser?.name || appUser?.email}</p>
-            <p className="text-xs text-muted-foreground capitalize">{appUser?.role?.toLowerCase()}</p>
+            <p className="text-xs text-muted-foreground capitalize">
+              {Array.isArray(appUser?.role) 
+                ? appUser.role.join(", ").toLowerCase() 
+                : (appUser?.role as any)?.toLowerCase() || ""}
+            </p>
           </div>
         </div>
 

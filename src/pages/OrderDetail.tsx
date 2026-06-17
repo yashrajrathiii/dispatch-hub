@@ -194,13 +194,13 @@ export default function OrderDetail() {
     );
   }
 
-  if (!order || (appUser?.role === "SALESMAN" && order.created_by_user_id !== appUser.id)) {
+  if (!order || (appUser?.role.includes("SALESMAN") && order.created_by_user_id !== appUser.id)) {
     return <div className="py-12 text-center text-muted-foreground">Order not found.</div>;
   }
 
   const currentStepIdx = STEPS.findIndex((s) => s.key === order.status);
   const isCancelled = order.status === "CANCELLED";
-  const canAdvance = appUser?.role === "OWNER" || appUser?.role === "ADMIN" || appUser?.role === "STAFF";
+  const canAdvance = appUser?.role.includes("OWNER") || appUser?.role.includes("ADMIN") || appUser?.role.includes("STAFF");
 
   return (
     <div className="space-y-6">

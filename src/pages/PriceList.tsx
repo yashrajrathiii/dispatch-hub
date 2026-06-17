@@ -193,7 +193,7 @@ export default function PriceList() {
     onError: (err: any) => toast({ title: "Error", description: err.message, variant: "destructive" }),
   });
 
-  const canEdit = appUser?.role === "OWNER" || appUser?.role === "ADMIN";
+  const canEdit = appUser?.role.includes("OWNER") || appUser?.role.includes("ADMIN");
 
   const startInlineEdit = (row: PriceRow) => {
     setEditingRow(row.product.id);

@@ -8,8 +8,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Users, Shield, UserPlus, Phone, Mail, Key } from "lucide-react";
+import { Plus, Users, Shield, UserPlus, Phone, Mail, Key, Pencil, MoreHorizontal } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 
 // Initialize a secondary Supabase client without session persistence
@@ -38,13 +39,14 @@ export default function SettingsUsers() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
+  const [editUserId, setEditUserId] = useState<string | null>(null);
 
   // Form states
-  const [form, setForm] = useState({
+  const [form, setForm] = useState<{ name: string; emailOrPhone: string; password: string; roles: string[] }>({
     name: "",
     emailOrPhone: "",
     password: "DispatchHub123",
-    role: "STAFF",
+    roles: ["STAFF"],
   });
 
   const { data: users = [], isLoading } = useQuery({
@@ -75,70 +77,98 @@ export default function SettingsUsers() {
 
   const addUserMutation = useMutation({
     mutationFn: async () => {
-      const isEmail = form.emailOrPhone.includes("@");
-      const credentials = isEmail
-        ? { email: form.emailOrPhone, password: form.password }
-        : { phone: formatPhone(form.emailOrPhone), password: form.password };
+      if (editUserId) {
+        // Edit mode: update name and roles only
+        const { error } = await supabase
+          .from("users")
+          .update({
+            name: form.name,
+            role: `{${form.roles.join(",")}}` as any,
+          })
+          .eq("id", editUserId);
+        if (error) throw error;
+      } else {
+        // Create mode: sign up auth user and update profile
+        const isEmail = form.emailOrPhone.includes("@");
+        const credentials = isEmail
+          ? { email: form.emailOrPhone, password: form.password }
+          : { phone: formatPhone(form.emailOrPhone), password: form.password };
 
-      // 1. Sign up the user via the secondary client to prevent logging out the current owner
-      const { data: authData, error: authError } = await secondaryClient.auth.signUp({
-        ...credentials,
-        options: {
-          data: {
-            full_name: form.name,
+        // 1. Sign up the user via the secondary client to prevent logging out the current owner
+        const { data: authData, error: authError } = await secondaryClient.auth.signUp({
+          ...credentials,
+          options: {
+            data: {
+              full_name: form.name,
+            },
           },
-        },
-      });
+        });
 
-      if (authError) throw authError;
+        if (authError) throw authError;
 
-      const authUserId = authData.user?.id;
-      if (!authUserId) throw new Error("Could not retrieve new user credentials.");
+        const authUserId = authData.user?.id;
+        if (!authUserId) throw new Error("Could not retrieve new user credentials.");
 
-      // 2. Update the public.users record created by the database trigger
-      const { error: updateError } = await supabase
-        .from("users")
-        .update({
-          name: form.name,
-          email: isEmail ? form.emailOrPhone : null,
-          phone: !isEmail ? formatPhone(form.emailOrPhone) : null,
-          role: form.role,
-        })
-        .eq("auth_user_id", authUserId);
+        // 2. Update the public.users record created by the database trigger
+        const { error: updateError } = await supabase
+          .from("users")
+          .update({
+            name: form.name,
+            email: isEmail ? form.emailOrPhone : null,
+            phone: !isEmail ? formatPhone(form.emailOrPhone) : null,
+            role: `{${form.roles.join(",")}}` as any,
+          })
+          .eq("auth_user_id", authUserId);
 
-      if (updateError) throw updateError;
+        if (updateError) throw updateError;
+      }
     },
     onSuccess: () => {
       toast({ 
         title: "Success", 
-        description: `User "${form.name}" has been created with role "${form.role}".` 
+        description: editUserId 
+          ? `User "${form.name}" has been updated.`
+          : `User "${form.name}" has been created with roles "${form.roles.join(", ")}".` 
       });
       queryClient.invalidateQueries({ queryKey: ["users-all"] });
       setOpen(false);
+      setEditUserId(null);
       // Reset form
       setForm({
         name: "",
         emailOrPhone: "",
         password: "DispatchHub123",
-        role: "STAFF",
+        roles: ["STAFF"],
       });
     },
     onError: (e: any) => {
-      toast({ title: "Error creating user", description: e.message, variant: "destructive" });
+      toast({ title: "Error saving user", description: e.message, variant: "destructive" });
     },
   });
 
   const handleOpenAdd = () => {
+    setEditUserId(null);
     setForm({
       name: "",
       emailOrPhone: "",
       password: "DispatchHub123",
-      role: "STAFF",
+      roles: ["STAFF"],
     });
     setOpen(true);
   };
 
-  if (appUser?.role !== "OWNER") {
+  const handleOpenEdit = (user: any) => {
+    setEditUserId(user.id);
+    setForm({
+      name: user.name,
+      emailOrPhone: user.email || user.phone || "",
+      password: "",
+      roles: Array.isArray(user.role) ? user.role : [user.role],
+    });
+    setOpen(true);
+  };
+
+  if (!appUser?.role.includes("OWNER")) {
     return (
       <div className="p-8 text-center">
         <h2 className="text-xl font-bold text-destructive">Access Denied</h2>
@@ -174,6 +204,7 @@ export default function SettingsUsers() {
                 <th className="px-4 py-3 text-xs font-semibold uppercase text-muted-foreground">Role</th>
                 <th className="px-4 py-3 text-xs font-semibold uppercase text-muted-foreground">Contact</th>
                 <th className="px-4 py-3 text-xs font-semibold uppercase text-muted-foreground">Status</th>
+                <th className="px-4 py-3 text-xs font-semibold uppercase text-muted-foreground text-right">Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -190,9 +221,19 @@ export default function SettingsUsers() {
                     </div>
                   </td>
                   <td className="px-4 py-3 text-sm">
-                    <Badge variant="outline" className={roleColors[user.role] || ""}>
-                      {user.role}
-                    </Badge>
+                    <div className="flex flex-wrap gap-1">
+                      {Array.isArray(user.role) ? (
+                        user.role.map((r: string) => (
+                          <Badge key={r} variant="outline" className={roleColors[r] || ""}>
+                            {r}
+                          </Badge>
+                        ))
+                      ) : (
+                        <Badge variant="outline" className={roleColors[user.role] || ""}>
+                          {user.role}
+                        </Badge>
+                      )}
+                    </div>
                   </td>
                   <td className="px-4 py-3 text-sm text-muted-foreground">
                     {user.email && (
@@ -214,6 +255,20 @@ export default function SettingsUsers() {
                       {user.is_active ? "Active" : "Inactive"}
                     </Badge>
                   </td>
+                  <td className="px-4 py-3 text-right">
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button size="icon" variant="ghost" className="h-8 w-8">
+                          <MoreHorizontal className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem onClick={() => handleOpenEdit(user)}>
+                          <Pencil className="h-4 w-4 mr-2" /> Edit User
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -225,7 +280,7 @@ export default function SettingsUsers() {
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="sm:max-w-md border border-gray-200">
           <DialogHeader>
-            <DialogTitle>Add New User</DialogTitle>
+            <DialogTitle>{editUserId ? "Edit User Roles & Details" : "Add New User"}</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-2">
             <div className="space-y-1">
@@ -238,51 +293,72 @@ export default function SettingsUsers() {
               />
             </div>
             
-            <div className="space-y-1">
-              <Label htmlFor="emailOrPhone">Email or Mobile Number *</Label>
-              <Input
-                id="emailOrPhone"
-                value={form.emailOrPhone}
-                onChange={(e) => setForm((f) => ({ ...f, emailOrPhone: e.target.value }))}
-                placeholder="e.g. john@example.com or 9876543210"
-              />
-              <span className="text-[10px] text-muted-foreground block">
-                Enter an email address or a 10-digit mobile number for login credentials.
-              </span>
-            </div>
+            {!editUserId && (
+              <>
+                <div className="space-y-1">
+                  <Label htmlFor="emailOrPhone">Email or Mobile Number *</Label>
+                  <Input
+                    id="emailOrPhone"
+                    value={form.emailOrPhone}
+                    onChange={(e) => setForm((f) => ({ ...f, emailOrPhone: e.target.value }))}
+                    placeholder="e.g. john@example.com or 9876543210"
+                  />
+                  <span className="text-[10px] text-muted-foreground block">
+                    Enter an email address or a 10-digit mobile number for login credentials.
+                  </span>
+                </div>
 
-            <div className="space-y-1">
-              <Label htmlFor="password">Temporary Password *</Label>
-              <Input
-                id="password"
-                type="text"
-                value={form.password}
-                onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))}
-                placeholder="At least 6 characters"
-              />
-              <span className="text-[10px] text-muted-foreground block">
-                The user will use this password to log in for the first time.
-              </span>
-            </div>
+                <div className="space-y-1">
+                  <Label htmlFor="password">Temporary Password *</Label>
+                  <Input
+                    id="password"
+                    type="text"
+                    value={form.password}
+                    onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))}
+                    placeholder="At least 6 characters"
+                  />
+                  <span className="text-[10px] text-muted-foreground block">
+                    The user will use this password to log in for the first time.
+                  </span>
+                </div>
+              </>
+            )}
 
-            <div className="space-y-1">
-              <Label htmlFor="role">Designated Role</Label>
-              <Select
-                value={form.role}
-                onValueChange={(val) => setForm((f) => ({ ...f, role: val }))}
-              >
-                <SelectTrigger id="role">
-                  <SelectValue placeholder="Select role" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="OWNER">Owner</SelectItem>
-                  <SelectItem value="ADMIN">Admin</SelectItem>
-                  <SelectItem value="STAFF">Staff</SelectItem>
-                  <SelectItem value="ACCOUNTANT">Accountant</SelectItem>
-                  <SelectItem value="DRIVER">Driver</SelectItem>
-                  <SelectItem value="SALESMAN">Salesman</SelectItem>
-                </SelectContent>
-              </Select>
+            <div className="space-y-2">
+              <Label>Designated Roles *</Label>
+              <div className="grid grid-cols-2 gap-2 mt-1">
+                {Object.keys(roleColors).map((roleKey) => {
+                  const isChecked = form.roles.includes(roleKey);
+                  return (
+                    <label 
+                      key={roleKey} 
+                      className={`flex items-center gap-2.5 p-2 rounded-md border cursor-pointer transition-colors ${
+                        isChecked 
+                          ? "bg-accent/40 border-primary" 
+                          : "border-border hover:bg-muted/30"
+                      }`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={isChecked}
+                        onChange={(e) => {
+                          const updatedRoles = e.target.checked
+                            ? [...form.roles, roleKey]
+                            : form.roles.filter((r) => r !== roleKey);
+                          // Ensure at least one role is selected
+                          if (updatedRoles.length > 0) {
+                            setForm((f) => ({ ...f, roles: updatedRoles }));
+                          }
+                        }}
+                        className="rounded border-gray-300 text-primary focus:ring-primary h-4 w-4"
+                      />
+                      <Badge variant="outline" className={roleColors[roleKey] || ""}>
+                        {roleKey}
+                      </Badge>
+                    </label>
+                  );
+                })}
+              </div>
             </div>
           </div>
           <DialogFooter>
@@ -291,9 +367,9 @@ export default function SettingsUsers() {
             </Button>
             <Button
               onClick={() => addUserMutation.mutate()}
-              disabled={!form.name || !form.emailOrPhone || form.password.length < 6 || addUserMutation.isPending}
+              disabled={!form.name || (!editUserId && (!form.emailOrPhone || form.password.length < 6)) || addUserMutation.isPending}
             >
-              {addUserMutation.isPending ? "Creating..." : "Create User"}
+              {addUserMutation.isPending ? "Saving..." : editUserId ? "Save Changes" : "Create User"}
             </Button>
           </DialogFooter>
         </DialogContent>
