@@ -24,6 +24,7 @@ import SettingsShops from "@/pages/SettingsShops";
 import SettingsBrands from "@/pages/SettingsBrands";
 import SettingsLocations from "@/pages/SettingsLocations";
 import SettingsUsers from "@/pages/SettingsUsers";
+import SettingsSecurity from "@/pages/SettingsSecurity";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -77,8 +78,12 @@ const App = () => (
               <Route path="/buyers" element={<Buyers />} />
             </Route>
 
-            <Route element={<ProtectedRoute allowedRoles={["OWNER", "ADMIN"]}><AppLayout title="Settings" /></ProtectedRoute>}>
+            <Route element={<ProtectedRoute><AppLayout title="Settings" /></ProtectedRoute>}>
               <Route path="/settings" element={<PlaceholderPage title="Settings" />} />
+              <Route path="/settings/security" element={<SettingsSecurity />} />
+            </Route>
+
+            <Route element={<ProtectedRoute allowedRoles={["OWNER", "ADMIN"]}><AppLayout title="Settings" /></ProtectedRoute>}>
               <Route path="/settings/shops" element={<SettingsShops />} />
               <Route path="/settings/brands" element={<SettingsBrands />} />
               <Route path="/settings/locations" element={<SettingsLocations />} />

@@ -13,6 +13,7 @@ import {
   MapPin,
   Navigation,
   X,
+  Key,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useAuth, AppRole } from "@/contexts/AuthContext";
@@ -37,12 +38,13 @@ const allItems: NavItem[] = [
   { title: "My Deliveries", url: "/driver", icon: Navigation, roles: ["DRIVER"] },
   { title: "Buyers", url: "/buyers", icon: Users, roles: ["OWNER", "ADMIN", "STAFF"] },
   {
-    title: "Settings", url: "/settings", icon: Settings, roles: ["OWNER", "ADMIN"],
+    title: "Settings", url: "/settings", icon: Settings, roles: ["OWNER", "ADMIN", "STAFF", "ACCOUNTANT", "DRIVER", "SALESMAN"],
     children: [
       { title: "Shops", url: "/settings/shops", icon: Building2 },
       { title: "Brands", url: "/settings/brands", icon: Tag },
       { title: "Locations", url: "/settings/locations", icon: MapPin },
       { title: "Users", url: "/settings/users", icon: Users },
+      { title: "Security", url: "/settings/security", icon: Key },
     ],
   },
 ];
@@ -60,9 +62,19 @@ export default function AppSidebar({ isOpen, onClose }: AppSidebarProps) {
       if (item.title === "Settings") {
         return {
           ...item,
-          children: item.children?.filter(
-            (child) => child.url !== "/settings/users" || role === "OWNER"
-          ),
+          children: item.children?.filter((child) => {
+            if (child.url === "/settings/users") {
+              return role === "OWNER";
+            }
+            if (
+              child.url === "/settings/shops" ||
+              child.url === "/settings/brands" ||
+              child.url === "/settings/locations"
+            ) {
+              return role === "OWNER" || role === "ADMIN";
+            }
+            return true;
+          }),
         };
       }
       return item;
