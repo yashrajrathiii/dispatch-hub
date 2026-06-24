@@ -99,7 +99,7 @@ export default function Inventory() {
     const baseUnits = ["CB", "Bags"];
     const dbUnits = inventory
       .map((item: any) => item.product?.unit)
-      .filter((u: string) => u && !baseUnits.includes(u));
+      .filter((u: string) => u && u.toLowerCase() !== "pcs" && !baseUnits.includes(u));
     return Array.from(new Set([...baseUnits, ...dbUnits, ...customUnits]));
   }, [inventory, customUnits]);
 
