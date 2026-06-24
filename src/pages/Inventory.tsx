@@ -54,6 +54,7 @@ export default function Inventory() {
 
   // Combined edit/adjust modal
   const [editModal, setEditModal] = useState<{ open: boolean; item: any | null }>({ open: false, item: null });
+  const [editName, setEditName] = useState("");
   const [editPpb, setEditPpb] = useState("");
   const [editQtyChange, setEditQtyChange] = useState("");
   const [editQtyChangeCb, setEditQtyChangeCb] = useState("");
@@ -147,6 +148,7 @@ export default function Inventory() {
   });
 
   const openEditModal = (item: any) => {
+    setEditName(item.product?.name || "");
     setEditPpb(item.product?.pieces_per_box?.toString() || "");
     setEditQtyChange("");
     setEditQtyChangeCb("");
@@ -190,10 +192,17 @@ export default function Inventory() {
       if (!item || !appUser) return;
       const change = Number(editQtyChange) || 0;
 
-      // Update pieces_per_box if changed
+      // Update product name and pieces_per_box if changed
       const newPpb = editPpb ? Number(editPpb) : null;
-      if (newPpb !== (item.product?.pieces_per_box ?? null)) {
-        const { error: pErr } = await supabase.from("products").update({ pieces_per_box: newPpb }).eq("id", item.product_id);
+      const nameChanged = editName.trim() && editName.trim() !== item.product?.name;
+      const ppbChanged = newPpb !== (item.product?.pieces_per_box ?? null);
+      
+      if (nameChanged || ppbChanged) {
+        const updatePayload: any = {};
+        if (nameChanged) updatePayload.name = editName.trim();
+        if (ppbChanged) updatePayload.pieces_per_box = newPpb;
+        
+        const { error: pErr } = await supabase.from("products").update(updatePayload).eq("id", item.product_id);
         if (pErr) throw pErr;
       }
 
@@ -503,14 +512,22 @@ export default function Inventory() {
           )}
         </div>
 
-        {/* Combined Edit / Adjust Modal */}
         <Dialog open={editModal.open} onOpenChange={(open) => !open && setEditModal({ open: false, item: null })}>
           <DialogContent>
             <DialogHeader>
-              <DialogTitle>{editModal.item?.product?.name}</DialogTitle>
+              <DialogTitle>Edit Product / Adjust Stock</DialogTitle>
               <p className="text-sm text-muted-foreground">{editModal.item?.product?.brand?.name || "No brand"}</p>
             </DialogHeader>
             <div className="space-y-4 py-2">
+              <div className="space-y-2">
+                <Label>Product Name</Label>
+                <Input 
+                  value={editName} 
+                  onChange={(e) => setEditName(e.target.value)} 
+                  placeholder="Product name" 
+                  disabled={!canAdd} 
+                />
+              </div>
               <div className="space-y-2">
                 <Label>Pieces per Box (CB)</Label>
                 <Input type="number" value={editPpb} onChange={(e) => handlePpbChange(e.target.value)} placeholder="e.g. 20" />
