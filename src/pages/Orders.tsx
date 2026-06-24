@@ -33,6 +33,13 @@ const paymentToBadge: Record<string, any> = {
   PAID: "paid",
 };
 
+const getSingularUnit = (unit: string) => {
+  if (!unit) return "Box";
+  if (unit.toLowerCase() === "cb") return "Box";
+  if (unit.toLowerCase().endsWith("s")) return unit.slice(0, -1);
+  return unit;
+};
+
 export default function Orders() {
   const { appUser } = useAuth();
   const { toast } = useToast();
@@ -590,6 +597,9 @@ export default function Orders() {
                 <h3 className="text-sm font-semibold text-foreground">Add Items</h3>
                 {orderItems.map((item, idx) => {
                   const avail = item.available;
+                  const prod = products.find((p: any) => p.id === item.product_id);
+                  const unitName = prod?.unit || "CB";
+                  const singularUnit = getSingularUnit(unitName);
                   const matches = item.product_search && !item.product_id
                     ? products.filter((p: any) => {
                         const searchLower = item.product_search.toLowerCase();
@@ -601,7 +611,7 @@ export default function Orders() {
                     : [];
                   return (
                     <div key={idx} className="rounded-md border border-gray-200 p-3 space-y-2">
-                      <div className="flex items-start gap-2">
+                       <div className="flex items-start gap-2">
                         <div className="flex-1 space-y-1 relative">
                           <Input
                             placeholder="Search product..."
@@ -633,7 +643,7 @@ export default function Orders() {
                           <Input type="number" min="0" value={item.qty_pcs} onChange={(e) => updateItemQtyPcs(idx, e.target.value)} className="h-8" />
                         </div>
                         <div className="space-y-1">
-                          <Label className="text-xs">Qty (CB)</Label>
+                          <Label className="text-xs">Qty ({unitName})</Label>
                           <Input type="number" min="0" value={item.qty_cb} onChange={(e) => updateItemQtyCb(idx, e.target.value)} className="h-8" />
                         </div>
                         <div className="space-y-1">
@@ -653,7 +663,7 @@ export default function Orders() {
                         </div>
                         <div className="space-y-1">
                           <Label className="text-xs flex items-center gap-1">
-                            Price/CB ₹
+                            Price/{singularUnit} ₹
                             <button type="button" onClick={() => togglePriceEdit(idx)}>
                               <Pencil className="h-3 w-3 text-muted-foreground hover:text-primary" />
                             </button>
@@ -675,7 +685,7 @@ export default function Orders() {
                         <div>
                           {item.product_id && (
                             <span>
-                              Packing: {products.find((p: any) => p.id === item.product_id)?.pieces_per_box || 1} Pcs/Box
+                              Packing: {prod?.pieces_per_box || 1} Pcs/{singularUnit}
                             </span>
                           )}
                         </div>
@@ -736,7 +746,7 @@ export default function Orders() {
 
                       const parts = [];
                       if (Number(item.qty_pcs) > 0) parts.push(`${item.qty_pcs} Pcs @ ₹${item.unit_price}`);
-                      if (Number(item.qty_cb) > 0) parts.push(`${item.qty_cb} CB @ ₹${item.box_price}`);
+                      if (Number(item.qty_cb) > 0) parts.push(`${item.qty_cb} ${prod?.unit || "CB"} @ ₹${item.box_price}`);
 
                       return (
                         <div key={idx} className="flex justify-between text-sm py-1">

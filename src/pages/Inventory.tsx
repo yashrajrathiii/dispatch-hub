@@ -43,6 +43,13 @@ function changeTypeBadge(type: string) {
   );
 }
 
+const getSingularUnit = (unit: string) => {
+  if (!unit) return "Box";
+  if (unit.toLowerCase() === "cb") return "Box";
+  if (unit.toLowerCase().endsWith("s")) return unit.slice(0, -1);
+  return unit;
+};
+
 export default function Inventory() {
   const { appUser } = useAuth();
   const { toast } = useToast();
@@ -55,17 +62,28 @@ export default function Inventory() {
   // Combined edit/adjust modal
   const [editModal, setEditModal] = useState<{ open: boolean; item: any | null }>({ open: false, item: null });
   const [editName, setEditName] = useState("");
+  const [editUnit, setEditUnit] = useState("");
   const [editPpb, setEditPpb] = useState("");
   const [editQtyChange, setEditQtyChange] = useState("");
   const [editQtyChangeCb, setEditQtyChangeCb] = useState("");
   const [editNote, setEditNote] = useState("");
+
+  // Dynamic unit list
+  const [customUnits, setCustomUnits] = useState<string[]>([]);
+  const unitOptions = useMemo(() => {
+    const baseUnits = ["CB", "Bags"];
+    const dbUnits = inventory
+      .map((item: any) => item.product?.unit)
+      .filter((u: string) => u && !baseUnits.includes(u));
+    return Array.from(new Set([...baseUnits, ...dbUnits, ...customUnits]));
+  }, [inventory, customUnits]);
 
   // History panel
   const [historyPanel, setHistoryPanel] = useState<{ open: boolean; item: any | null }>({ open: false, item: null });
 
   // Add product
   const [addModal, setAddModal] = useState(false);
-  const [newProduct, setNewProduct] = useState({ name: "", brand_id: "", unit: "pcs", shop_id: "", quantity: "0", pieces_per_box: "" });
+  const [newProduct, setNewProduct] = useState({ name: "", brand_id: "", unit: "CB", shop_id: "", quantity: "0", pieces_per_box: "" });
 
   // Global logs modal & filters
   const [logsModalOpen, setLogsModalOpen] = useState(false);
@@ -149,6 +167,7 @@ export default function Inventory() {
 
   const openEditModal = (item: any) => {
     setEditName(item.product?.name || "");
+    setEditUnit(item.product?.unit || "CB");
     setEditPpb(item.product?.pieces_per_box?.toString() || "");
     setEditQtyChange("");
     setEditQtyChangeCb("");
@@ -192,14 +211,16 @@ export default function Inventory() {
       if (!item || !appUser) return;
       const change = Number(editQtyChange) || 0;
 
-      // Update product name and pieces_per_box if changed
+      // Update product name, unit, and pieces_per_box if changed
       const newPpb = editPpb ? Number(editPpb) : null;
       const nameChanged = editName.trim() && editName.trim() !== item.product?.name;
+      const unitChanged = editUnit && editUnit !== item.product?.unit;
       const ppbChanged = newPpb !== (item.product?.pieces_per_box ?? null);
       
-      if (nameChanged || ppbChanged) {
+      if (nameChanged || unitChanged || ppbChanged) {
         const updatePayload: any = {};
         if (nameChanged) updatePayload.name = editName.trim();
+        if (unitChanged) updatePayload.unit = editUnit;
         if (ppbChanged) updatePayload.pieces_per_box = newPpb;
         
         const { error: pErr } = await supabase.from("products").update(updatePayload).eq("id", item.product_id);
@@ -271,7 +292,7 @@ export default function Inventory() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["inventory"] });
       setAddModal(false);
-      setNewProduct({ name: "", brand_id: "", unit: "pcs", shop_id: "", quantity: "0", pieces_per_box: "" });
+      setNewProduct({ name: "", brand_id: "", unit: "CB", shop_id: "", quantity: "0", pieces_per_box: "" });
       toast({ title: "Product added successfully" });
     },
     onError: (err: any) => toast({ title: "Error", description: err.message, variant: "destructive" }),
@@ -436,7 +457,7 @@ export default function Inventory() {
                   <th className="px-4 py-3 text-xs font-semibold uppercase text-muted-foreground">Brand</th>
                   <th className="px-4 py-3 text-xs font-semibold uppercase text-muted-foreground">Godown</th>
                   <th className="px-4 py-3 text-xs font-semibold uppercase text-muted-foreground">QTY (Pcs)</th>
-                  <th className="px-4 py-3 text-xs font-semibold uppercase text-muted-foreground">QTY (CB)</th>
+                  <th className="px-4 py-3 text-xs font-semibold uppercase text-muted-foreground">QTY (Pack)</th>
                   <th className="px-4 py-3 text-xs font-semibold uppercase text-muted-foreground">Status</th>
                   <th className="px-4 py-3 text-xs font-semibold uppercase text-muted-foreground">Last Updated</th>
                   <th className="px-4 py-3 text-xs font-semibold uppercase text-muted-foreground">Actions</th>
@@ -447,7 +468,9 @@ export default function Inventory() {
                   const qty = Number(item.quantity);
                   const ppb = item.product?.pieces_per_box;
                   const cbValue = computeCB(qty, ppb);
+                  const productUnit = item.product?.unit || "CB";
                   const missingPpb = !ppb || ppb <= 0;
+                  const singularUnit = getSingularUnit(productUnit);
                   return (
                     <tr key={item.id} className="border-b border-border last:border-0">
                       <td className="px-4 py-3 text-sm font-medium text-foreground">{item.product?.name}</td>
@@ -462,13 +485,13 @@ export default function Inventory() {
                             <TooltipTrigger asChild>
                               <button onClick={() => openEditModal(item)} className="inline-flex items-center gap-1 text-amber-500 hover:text-amber-600">
                                 <AlertTriangle className="h-3.5 w-3.5" />
-                                <span className="text-xs">Set Pcs/Box</span>
+                                <span className="text-xs">Set Pcs/{singularUnit}</span>
                               </button>
                             </TooltipTrigger>
-                            <TooltipContent>Set Pieces per Box to calculate CB</TooltipContent>
+                            <TooltipContent>Set Pieces per {singularUnit} to calculate {productUnit}</TooltipContent>
                           </Tooltip>
                         ) : (
-                          <span>{cbValue} CB</span>
+                          <span>{cbValue} {productUnit}</span>
                         )}
                       </td>
                       <td className="px-4 py-3"><StockBadge qty={qty} /></td>
@@ -529,7 +552,41 @@ export default function Inventory() {
                 />
               </div>
               <div className="space-y-2">
-                <Label>Pieces per Box (CB)</Label>
+                <Label>Unit</Label>
+                <div className="flex gap-2">
+                  <Select value={editUnit} onValueChange={setEditUnit} disabled={!canAdd}>
+                    <SelectTrigger className="flex-1">
+                      <SelectValue placeholder="Select unit" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {unitOptions.map((u) => (
+                        <SelectItem key={u} value={u}>{u}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Button 
+                    type="button" 
+                    variant="outline" 
+                    size="icon" 
+                    disabled={!canAdd}
+                    onClick={() => {
+                      const nu = prompt("Enter new unit name:");
+                      if (nu && nu.trim()) {
+                        const cleanNu = nu.trim();
+                        if (!unitOptions.includes(cleanNu)) {
+                          setCustomUnits(prev => [...prev, cleanNu]);
+                        }
+                        setEditUnit(cleanNu);
+                      }
+                    }}
+                    title="Add custom unit"
+                  >
+                    <Plus className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label>Pieces per {getSingularUnit(editUnit)} ({editUnit})</Label>
                 <Input type="number" value={editPpb} onChange={(e) => handlePpbChange(e.target.value)} placeholder="e.g. 20" />
               </div>
               <div className="grid grid-cols-2 gap-4">
@@ -538,12 +595,12 @@ export default function Inventory() {
                   <Input type="number" value={editQtyChange} onChange={(e) => handleQtyChange(e.target.value)} placeholder="e.g. 50 or -20" />
                 </div>
                 <div className="space-y-2">
-                  <Label>Quantity Change in Boxes (CB)</Label>
+                  <Label>Quantity Change in {editUnit}</Label>
                   <Input 
                     type="number" 
                     value={editQtyChangeCb} 
                     onChange={(e) => handleQtyChangeCb(e.target.value)} 
-                    placeholder={editPpb ? "e.g. 2.5 or -1" : "Set Pcs/Box first"}
+                    placeholder={editPpb ? `e.g. 2.5 or -1` : `Set Pcs/${getSingularUnit(editUnit)} first`}
                     disabled={!editPpb || Number(editPpb) <= 0}
                   />
                 </div>
@@ -618,24 +675,57 @@ export default function Inventory() {
                   </Select>
                 </div>
                 <div className="space-y-2">
-                  <Label>Pieces per Box (CB)</Label>
-                  <Input type="number" value={newProduct.pieces_per_box} onChange={(e) => setNewProduct(p => ({ ...p, pieces_per_box: e.target.value }))} placeholder="e.g. 20" />
+                  <Label>Unit</Label>
+                  <div className="flex gap-2">
+                    <Select value={newProduct.unit} onValueChange={(v) => setNewProduct(p => ({ ...p, unit: v }))}>
+                      <SelectTrigger className="flex-1">
+                        <SelectValue placeholder="Select unit" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {unitOptions.map((u) => (
+                          <SelectItem key={u} value={u}>{u}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Button 
+                      type="button" 
+                      variant="outline" 
+                      size="icon" 
+                      onClick={() => {
+                        const nu = prompt("Enter new unit name:");
+                        if (nu && nu.trim()) {
+                          const cleanNu = nu.trim();
+                          if (!unitOptions.includes(cleanNu)) {
+                            setCustomUnits(prev => [...prev, cleanNu]);
+                          }
+                          setNewProduct(p => ({ ...p, unit: cleanNu }));
+                        }
+                      }}
+                      title="Add custom unit"
+                    >
+                      <Plus className="h-4 w-4" />
+                    </Button>
+                  </div>
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
+                  <Label>Pieces per {getSingularUnit(newProduct.unit)} ({newProduct.unit})</Label>
+                  <Input type="number" value={newProduct.pieces_per_box} onChange={(e) => setNewProduct(p => ({ ...p, pieces_per_box: e.target.value }))} placeholder="e.g. 20" />
+                </div>
+                <div className="space-y-2">
                   <Label>Quantity (Pieces)</Label>
                   <Input type="number" value={newProduct.quantity} onChange={(e) => setNewProduct(p => ({ ...p, quantity: e.target.value }))} />
                 </div>
-                <div className="space-y-2">
-                  <Label>Godown</Label>
-                  <Select value={newProduct.shop_id} onValueChange={(v) => setNewProduct(p => ({ ...p, shop_id: v }))}>
-                    <SelectTrigger><SelectValue placeholder="Select godown" /></SelectTrigger>
-                    <SelectContent>
-                      {godowns.map((s: any) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                </div>
+              </div>
+              <div className="space-y-2">
+                <Label>Godown</Label>
+                <Select value={newProduct.shop_id} onValueChange={(v) => setNewProduct(p => ({ ...p, shop_id: v }))}>
+                  <SelectTrigger><SelectValue placeholder="Select godown" /></SelectTrigger>
+                  <SelectContent>
+                    {godowns.map((s: any) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
+                  </SelectContent>
+                </Select>
               </div>
             </div>
             <DialogFooter>
