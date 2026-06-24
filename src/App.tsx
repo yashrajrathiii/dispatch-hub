@@ -20,6 +20,7 @@ import Dispatch from "@/pages/Dispatch";
 import DriverView from "@/pages/DriverView";
 import PlaceholderPage from "@/pages/PlaceholderPage";
 import Buyers from "@/pages/Buyers";
+import CheckClearance from "@/pages/CheckClearance";
 import SettingsShops from "@/pages/SettingsShops";
 import SettingsBrands from "@/pages/SettingsBrands";
 import SettingsLocations from "@/pages/SettingsLocations";
@@ -76,6 +77,10 @@ const App = () => (
 
             <Route element={<ProtectedRoute allowedRoles={["OWNER", "ADMIN", "STAFF"]}><AppLayout title="Buyers" /></ProtectedRoute>}>
               <Route path="/buyers" element={<Buyers />} />
+            </Route>
+
+            <Route element={<ProtectedRoute allowedRoles={["OWNER"]}><AppLayout title="Cheque Register" /></ProtectedRoute>}>
+              <Route path="/check-clearance" element={<CheckClearance />} />
             </Route>
 
             <Route element={<ProtectedRoute><AppLayout title="Settings" /></ProtectedRoute>}>

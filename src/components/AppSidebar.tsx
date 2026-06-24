@@ -14,6 +14,7 @@ import {
   Navigation,
   X,
   Key,
+  FileCheck2,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useAuth, AppRole } from "@/contexts/AuthContext";
@@ -37,6 +38,7 @@ const allItems: NavItem[] = [
   { title: "Dispatch", url: "/dispatch", icon: Truck, roles: ["OWNER", "ADMIN", "STAFF"] },
   { title: "My Deliveries", url: "/driver", icon: Navigation, roles: ["DRIVER"] },
   { title: "Buyers", url: "/buyers", icon: Users, roles: ["OWNER", "ADMIN", "STAFF"] },
+  { title: "Cheque Register", url: "/check-clearance", icon: FileCheck2, roles: ["OWNER"] },
   {
     title: "Settings", url: "/settings", icon: Settings, roles: ["OWNER", "ADMIN", "STAFF", "ACCOUNTANT", "DRIVER", "SALESMAN"],
     children: [

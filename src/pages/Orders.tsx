@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/contexts/AuthContext";
@@ -49,10 +49,21 @@ export default function Orders() {
   const [isNewBuyer, setIsNewBuyer] = useState(false);
   const [selectedBuyerId, setSelectedBuyerId] = useState("");
   const [buyerSearch, setBuyerSearch] = useState("");
-  const [newBuyer, setNewBuyer] = useState({ name: "", phone: "", email: "" });
+  const [newBuyer, setNewBuyer] = useState({ name: "", phone: "", address: "" });
+  const [shopPhotoFile, setShopPhotoFile] = useState<File | null>(null);
+  const [shopPhotoPreview, setShopPhotoPreview] = useState<string | null>(null);
   const [orderShopId, setOrderShopId] = useState("");
   const [deliveryDate, setDeliveryDate] = useState<Date | undefined>(undefined);
-  const [orderItems, setOrderItems] = useState<Array<{ product_id: string; product_search: string; qty: string; unit_price: number; available: number | null; price_editable: boolean }>>([]);
+  const [orderItems, setOrderItems] = useState<Array<{
+    product_id: string;
+    product_search: string;
+    qty_pcs: string;
+    qty_cb: string;
+    unit_price: number;
+    box_price: number;
+    available: number | null;
+    price_editable: boolean;
+  }>>([]);
   const [orderNotes, setOrderNotes] = useState("");
   const [notesPhotoFile, setNotesPhotoFile] = useState<File | null>(null);
   const [notesPhotoPreview, setNotesPhotoPreview] = useState<string | null>(null);
@@ -128,6 +139,12 @@ export default function Orders() {
     },
   });
 
+  useEffect(() => {
+    if (!orderShopId && godowns.length > 0) {
+      setOrderShopId(appUser?.assigned_shop_id || godowns[0]?.id || "");
+    }
+  }, [godowns, appUser, orderShopId]);
+
   // Filter orders
   const filtered = orders.filter((o: any) => {
     if (statusFilter !== "all" && o.status !== statusFilter) return false;
@@ -135,9 +152,14 @@ export default function Orders() {
     return true;
   });
 
-  const getPrice = (productId: string): number => {
+  const getUnitPrice = (productId: string): number => {
     const price = activePrices.find((p: any) => p.product_id === productId);
     return price ? Number(price.price_per_unit) : 0;
+  };
+
+  const getBoxPrice = (productId: string): number => {
+    const price = activePrices.find((p: any) => p.product_id === productId);
+    return price ? Number(price.price_per_box ?? 0) : 0;
   };
 
   const getAvailable = (productId: string): number | null => {
@@ -147,27 +169,49 @@ export default function Orders() {
   };
 
   const addItemRow = () => {
-    setOrderItems([...orderItems, { product_id: "", product_search: "", qty: "1", unit_price: 0, available: null, price_editable: false }]);
+    setOrderItems([...orderItems, { product_id: "", product_search: "", qty_pcs: "0", qty_cb: "0", unit_price: 0, box_price: 0, available: null, price_editable: false }]);
   };
 
   const selectProduct = (idx: number, product: any) => {
-    const price = getPrice(product.id);
+    const unitPrice = getUnitPrice(product.id);
+    const boxPrice = getBoxPrice(product.id);
     const avail = getAvailable(product.id);
     setOrderItems((items) =>
-      items.map((item, i) => (i === idx ? { ...item, product_id: product.id, product_search: product.name, unit_price: price, available: avail, price_editable: false } : item))
+      items.map((item, i) => (i === idx ? { ...item, product_id: product.id, product_search: product.name, unit_price: unitPrice, box_price: boxPrice, available: avail, price_editable: false } : item))
     );
   };
 
   const updateItemSearch = (idx: number, search: string) => {
-    setOrderItems((items) => items.map((item, i) => (i === idx ? { ...item, product_search: search, product_id: search ? item.product_id : "", available: search ? item.available : null } : item)));
+    setOrderItems((items) =>
+      items.map((item, i) => {
+        if (i !== idx) return item;
+        const exactProduct = products.find((p: any) => p.name.toLowerCase() === search.toLowerCase());
+        return {
+          ...item,
+          product_search: search,
+          product_id: exactProduct ? exactProduct.id : "",
+          available: exactProduct ? getAvailable(exactProduct.id) : null,
+          unit_price: exactProduct ? getUnitPrice(exactProduct.id) : item.unit_price,
+          box_price: exactProduct ? getBoxPrice(exactProduct.id) : item.box_price,
+        };
+      })
+    );
   };
 
-  const updateItemQty = (idx: number, qty: string) => {
-    setOrderItems((items) => items.map((item, i) => (i === idx ? { ...item, qty } : item)));
+  const updateItemQtyPcs = (idx: number, qty_pcs: string) => {
+    setOrderItems((items) => items.map((item, i) => (i === idx ? { ...item, qty_pcs } : item)));
   };
 
-  const updateItemPrice = (idx: number, price: number) => {
-    setOrderItems((items) => items.map((item, i) => (i === idx ? { ...item, unit_price: price } : item)));
+  const updateItemQtyCb = (idx: number, qty_cb: string) => {
+    setOrderItems((items) => items.map((item, i) => (i === idx ? { ...item, qty_cb } : item)));
+  };
+
+  const updateItemUnitPrice = (idx: number, unit_price: number) => {
+    setOrderItems((items) => items.map((item, i) => (i === idx ? { ...item, unit_price } : item)));
+  };
+
+  const updateItemBoxPrice = (idx: number, box_price: number) => {
+    setOrderItems((items) => items.map((item, i) => (i === idx ? { ...item, box_price } : item)));
   };
 
   const togglePriceEdit = (idx: number) => {
@@ -178,7 +222,11 @@ export default function Orders() {
     setOrderItems((items) => items.filter((_, i) => i !== idx));
   };
 
-  const runningTotal = orderItems.reduce((sum, item) => sum + Number(item.qty) * item.unit_price, 0);
+  const runningTotal = orderItems.reduce((sum, item) => {
+    const pcsTotal = Number(item.qty_pcs || 0) * (item.unit_price || 0);
+    const cbTotal = Number(item.qty_cb || 0) * (item.box_price || 0);
+    return sum + pcsTotal + cbTotal;
+  }, 0);
 
   const filteredBuyers = useMemo(() => {
     if (!buyerSearch) return [];
@@ -199,7 +247,9 @@ export default function Orders() {
     setIsNewBuyer(false);
     setSelectedBuyerId("");
     setBuyerSearch("");
-    setNewBuyer({ name: "", phone: "", email: "" });
+    setNewBuyer({ name: "", phone: "", address: "" });
+    setShopPhotoFile(null);
+    setShopPhotoPreview(null);
     setOrderShopId("");
     setDeliveryDate(undefined);
     setOrderItems([]);
@@ -215,29 +265,34 @@ export default function Orders() {
       let buyerId = selectedBuyerId;
 
       if (isNewBuyer) {
+        let shopPhotoUrl: string | null = null;
+        if (shopPhotoFile) {
+          const ext = shopPhotoFile.name.split(".").pop();
+          const path = `shop-${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+          const { error: uploadErr } = await supabase.storage.from("walkin-proofs").upload(path, shopPhotoFile);
+          if (!uploadErr) {
+            const { data: urlData } = supabase.storage.from("walkin-proofs").getPublicUrl(path);
+            shopPhotoUrl = urlData.publicUrl;
+          }
+        }
+
+        const notesObj = {
+          text: "",
+          shop_front_photo_url: shopPhotoUrl,
+        };
+
         const { data: nb, error: nbErr } = await supabase
           .from("buyers")
           .insert({
             name: newBuyer.name,
             phone: newBuyer.phone || null,
-            email: newBuyer.email || null,
+            address: newBuyer.address || null,
+            notes: JSON.stringify(notesObj),
           })
           .select()
           .single();
         if (nbErr) throw nbErr;
         buyerId = nb.id;
-      }
-
-      // Upload notes photo if exists
-      let photoUrl: string | null = null;
-      if (notesPhotoFile) {
-        const ext = notesPhotoFile.name.split(".").pop();
-        const path = `order-${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
-        const { error: uploadErr } = await supabase.storage.from("walkin-proofs").upload(path, notesPhotoFile);
-        if (!uploadErr) {
-          const { data: urlData } = supabase.storage.from("walkin-proofs").getPublicUrl(path);
-          photoUrl = urlData.publicUrl;
-        }
       }
 
       const total = runningTotal;
@@ -247,13 +302,13 @@ export default function Orders() {
         .insert({
           buyer_id: buyerId,
           shop_id: orderShopId || null,
-          delivery_date: deliveryDate ? format(deliveryDate, "yyyy-MM-dd") : null,
+          delivery_date: null,
           status: "PENDING" as any,
           payment_status: "PENDING" as any,
           channel: "MANUAL" as any,
           created_by_user_id: appUser.id,
-          notes: orderNotes || null,
-          notes_photo_url: photoUrl,
+          notes: null,
+          notes_photo_url: null,
           total_amount: total,
         })
         .select()
@@ -261,18 +316,25 @@ export default function Orders() {
       if (orderErr) throw orderErr;
 
       for (const item of orderItems) {
-        if (!item.product_id || Number(item.qty) <= 0) continue;
-        const reqQty = Number(item.qty);
+        const qtyPcs = Number(item.qty_pcs || 0);
+        const qtyCb = Number(item.qty_cb || 0);
+        if (!item.product_id || (qtyPcs <= 0 && qtyCb <= 0)) continue;
+
+        const prod = products.find((p: any) => p.id === item.product_id);
+        const pcsPerBox = prod?.pieces_per_box || 1;
+        const reqQty = qtyPcs + (qtyCb * pcsPerBox);
         const avail = item.available ?? 0;
         const allocQty = Math.min(reqQty, avail);
+        const lineTotal = (qtyPcs * item.unit_price) + (qtyCb * item.box_price);
+        const unitPriceToSave = reqQty > 0 ? (lineTotal / reqQty) : 0;
 
         await supabase.from("order_items").insert({
           order_id: order.id,
           product_id: item.product_id,
           requested_qty: reqQty,
           allocated_qty: allocQty,
-          unit_price: item.unit_price,
-          line_total: reqQty * item.unit_price,
+          unit_price: unitPriceToSave,
+          line_total: lineTotal,
         });
       }
 
@@ -432,11 +494,11 @@ export default function Orders() {
       <Dialog open={drawerOpen} onOpenChange={(o) => { if (!o) resetDrawer(); setDrawerOpen(o); }}>
         <DialogContent className="w-full sm:max-w-xl max-h-[95vh] overflow-y-auto border border-gray-200">
           <DialogHeader>
-            <DialogTitle>Create Order — Step {step}/4</DialogTitle>
+            <DialogTitle>Create Order — Step {step}/3</DialogTitle>
           </DialogHeader>
           <div className="mt-6 space-y-6">
             <div className="flex gap-1">
-              {[1, 2, 3, 4].map((s) => (
+              {[1, 2, 3].map((s) => (
                 <div key={s} className={cn("h-1.5 flex-1 rounded-full", s <= step ? "bg-primary" : "bg-muted")} />
               ))}
             </div>
@@ -459,8 +521,35 @@ export default function Orders() {
                       <Input value={newBuyer.phone} onChange={(e) => setNewBuyer((b) => ({ ...b, phone: e.target.value }))} />
                     </div>
                     <div className="space-y-1">
-                      <Label>Email</Label>
-                      <Input value={newBuyer.email} onChange={(e) => setNewBuyer((b) => ({ ...b, email: e.target.value }))} />
+                      <Label>Address</Label>
+                      <Input value={newBuyer.address} onChange={(e) => setNewBuyer((b) => ({ ...b, address: e.target.value }))} />
+                    </div>
+                    <div className="space-y-1">
+                      <Label>Shop Front Photo (optional)</Label>
+                      {shopPhotoPreview ? (
+                        <div className="relative inline-block mt-1">
+                          <img src={shopPhotoPreview} alt="Shop Front" className="h-24 w-24 rounded-md object-cover border border-gray-200" />
+                          <button
+                            onClick={() => { setShopPhotoFile(null); setShopPhotoPreview(null); }}
+                            className="absolute -top-2 -right-2 rounded-full bg-destructive p-1 text-destructive-foreground"
+                            type="button"
+                          >
+                            <X className="h-3 w-3" />
+                          </button>
+                        </div>
+                      ) : (
+                        <label className="flex h-20 w-32 cursor-pointer items-center justify-center gap-2 rounded-md border-2 border-dashed border-gray-300 text-muted-foreground hover:border-primary hover:text-primary mt-1">
+                          <Camera className="h-5 w-5" />
+                          <span className="text-xs">Attach</span>
+                          <input type="file" accept="image/jpeg,image/png" className="hidden" onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (file) {
+                              setShopPhotoFile(file);
+                              setShopPhotoPreview(URL.createObjectURL(file));
+                            }
+                          }} />
+                        </label>
+                      )}
                     </div>
                   </div>
                 ) : (
@@ -491,87 +580,24 @@ export default function Orders() {
                   onClick={() => setStep(2)}
                   disabled={isNewBuyer ? !newBuyer.name : !selectedBuyerId}
                 >
-                  Next: Delivery Details
+                  Next: Add Items
                 </Button>
               </div>
             )}
 
             {step === 2 && (
               <div className="space-y-4">
-                <h3 className="text-sm font-semibold text-foreground">Delivery Details</h3>
-                <div className="space-y-1">
-                  <Label>Godown</Label>
-                  <Select value={orderShopId} onValueChange={setOrderShopId}>
-                    <SelectTrigger><SelectValue placeholder="Select godown" /></SelectTrigger>
-                    <SelectContent>
-                      {godowns.map((s: any) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-1">
-                  <Label>Delivery Date (optional)</Label>
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <Button variant="outline" className="w-full justify-start text-left font-normal border-gray-300">
-                        <CalendarIcon className="mr-2 h-4 w-4" />
-                        {deliveryDate ? format(deliveryDate, "PPP") : "Pick a date"}
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0" align="start">
-                      <Calendar
-                        mode="single"
-                        selected={deliveryDate}
-                        onSelect={(d) => setDeliveryDate(d)}
-                        disabled={(d) => d < new Date(new Date().setHours(0, 0, 0, 0))}
-                        initialFocus
-                        className="p-3 pointer-events-auto"
-                      />
-                    </PopoverContent>
-                  </Popover>
-                </div>
-                <div className="space-y-3">
-                  <h4 className="text-xs font-semibold uppercase text-muted-foreground">Notes & Proof</h4>
-                  <div className="space-y-1">
-                    <Label>Note</Label>
-                    <Input value={orderNotes} onChange={(e) => setOrderNotes(e.target.value)} placeholder="Add delivery notes..." />
-                  </div>
-                  <div className="space-y-1">
-                    <Label>Attach Photo (optional)</Label>
-                    {notesPhotoPreview ? (
-                      <div className="relative inline-block">
-                        <img src={notesPhotoPreview} alt="Proof" className="h-24 w-24 rounded-md object-cover border border-gray-200" />
-                        <button
-                          onClick={() => { setNotesPhotoFile(null); setNotesPhotoPreview(null); }}
-                          className="absolute -top-2 -right-2 rounded-full bg-destructive p-1 text-destructive-foreground"
-                          type="button"
-                        >
-                          <X className="h-3 w-3" />
-                        </button>
-                      </div>
-                    ) : (
-                      <label className="flex h-20 w-32 cursor-pointer items-center justify-center gap-2 rounded-md border-2 border-dashed border-gray-300 text-muted-foreground hover:border-primary hover:text-primary">
-                        <Camera className="h-5 w-5" />
-                        <span className="text-xs">Attach</span>
-                        <input type="file" accept="image/jpeg,image/png" className="hidden" onChange={handleNotesPhoto} />
-                      </label>
-                    )}
-                  </div>
-                </div>
-                <div className="flex gap-2">
-                  <Button variant="outline" onClick={() => setStep(1)} className="flex-1 border-gray-300">Back</Button>
-                  <Button onClick={() => setStep(3)} className="flex-1" disabled={!orderShopId}>Next: Add Items</Button>
-                </div>
-              </div>
-            )}
-
-            {step === 3 && (
-              <div className="space-y-4">
                 <h3 className="text-sm font-semibold text-foreground">Add Items</h3>
                 {orderItems.map((item, idx) => {
-                  const reqQty = Number(item.qty);
                   const avail = item.available;
                   const matches = item.product_search && !item.product_id
-                    ? products.filter((p: any) => p.name.toLowerCase().includes(item.product_search.toLowerCase())).slice(0, 6)
+                    ? products.filter((p: any) => {
+                        const searchLower = item.product_search.toLowerCase();
+                        return (
+                          p.name.toLowerCase().includes(searchLower) ||
+                          (p.brand?.name && p.brand.name.toLowerCase().includes(searchLower))
+                        );
+                      })
                     : [];
                   return (
                     <div key={idx} className="rounded-md border border-gray-200 p-3 space-y-2">
@@ -583,7 +609,7 @@ export default function Orders() {
                             onChange={(e) => updateItemSearch(idx, e.target.value)}
                           />
                           {matches.length > 0 && (
-                            <div className="absolute z-10 left-0 right-0 mt-1 max-h-40 overflow-y-auto rounded-md border border-gray-200 bg-popover shadow-md">
+                            <div className="absolute z-10 left-0 right-0 mt-1 max-h-60 overflow-y-auto rounded-md border border-gray-200 bg-popover shadow-md">
                               {matches.map((p: any) => (
                                 <button
                                   key={p.id}
@@ -601,14 +627,18 @@ export default function Orders() {
                           <Trash2 className="h-4 w-4 text-destructive" />
                         </Button>
                       </div>
-                      <div className="flex items-center gap-3 flex-wrap">
-                        <div className="space-y-1 w-20">
-                          <Label className="text-xs">Qty</Label>
-                          <Input type="number" min="1" value={item.qty} onChange={(e) => updateItemQty(idx, e.target.value)} className="h-8" />
+                      <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 items-end">
+                        <div className="space-y-1">
+                          <Label className="text-xs">Qty (Pcs)</Label>
+                          <Input type="number" min="0" value={item.qty_pcs} onChange={(e) => updateItemQtyPcs(idx, e.target.value)} className="h-8" />
                         </div>
-                        <div className="space-y-1 w-28">
+                        <div className="space-y-1">
+                          <Label className="text-xs">Qty (CB)</Label>
+                          <Input type="number" min="0" value={item.qty_cb} onChange={(e) => updateItemQtyCb(idx, e.target.value)} className="h-8" />
+                        </div>
+                        <div className="space-y-1">
                           <Label className="text-xs flex items-center gap-1">
-                            Price ₹
+                            Price/Pc ₹
                             <button type="button" onClick={() => togglePriceEdit(idx)}>
                               <Pencil className="h-3 w-3 text-muted-foreground hover:text-primary" />
                             </button>
@@ -617,22 +647,46 @@ export default function Orders() {
                             type="number"
                             value={item.unit_price}
                             readOnly={!item.price_editable}
-                            onChange={(e) => updateItemPrice(idx, Number(e.target.value))}
+                            onChange={(e) => updateItemUnitPrice(idx, Number(e.target.value))}
                             className={cn("h-8", !item.price_editable && "bg-muted")}
                           />
                         </div>
-                        <div className="space-y-1 w-24">
-                          <Label className="text-xs">Total ₹</Label>
-                          <Input value={(reqQty * item.unit_price).toFixed(2)} readOnly className="h-8 bg-muted" />
+                        <div className="space-y-1">
+                          <Label className="text-xs flex items-center gap-1">
+                            Price/CB ₹
+                            <button type="button" onClick={() => togglePriceEdit(idx)}>
+                              <Pencil className="h-3 w-3 text-muted-foreground hover:text-primary" />
+                            </button>
+                          </Label>
+                          <Input
+                            type="number"
+                            value={item.box_price}
+                            readOnly={!item.price_editable}
+                            onChange={(e) => updateItemBoxPrice(idx, Number(e.target.value))}
+                            className={cn("h-8", !item.price_editable && "bg-muted")}
+                          />
                         </div>
-                        <div className="space-y-1 ml-auto">
-                          <Label className="text-xs">Available</Label>
-                          {item.product_id && avail !== null ? (
-                            <p className={cn("text-sm font-semibold pt-1", avail > 0 ? "text-success" : "text-destructive")}>
-                              {avail}
-                            </p>
-                          ) : (
-                            <p className="text-sm text-muted-foreground pt-1">—</p>
+                        <div className="space-y-1 col-span-2 sm:col-span-1">
+                          <Label className="text-xs">Total ₹</Label>
+                          <Input value={((Number(item.qty_pcs) * item.unit_price) + (Number(item.qty_cb) * item.box_price)).toFixed(2)} readOnly className="h-8 bg-muted font-semibold" />
+                        </div>
+                      </div>
+                      <div className="flex justify-between items-center text-[10px] text-muted-foreground pt-1">
+                        <div>
+                          {item.product_id && (
+                            <span>
+                              Packing: {products.find((p: any) => p.id === item.product_id)?.pieces_per_box || 1} Pcs/Box
+                            </span>
+                          )}
+                        </div>
+                        <div>
+                          {item.product_id && avail !== null && (
+                            <span className="flex gap-1 items-center">
+                              Available: 
+                              <span className={cn("font-semibold", avail > 0 ? "text-success" : "text-destructive")}>
+                                {avail} Pcs
+                              </span>
+                            </span>
                           )}
                         </div>
                       </div>
@@ -647,15 +701,15 @@ export default function Orders() {
                   <span className="text-lg font-bold text-foreground">₹{runningTotal.toFixed(2)}</span>
                 </div>
                 <div className="flex gap-2">
-                  <Button variant="outline" onClick={() => setStep(2)} className="flex-1 border-gray-300">Back</Button>
-                  <Button onClick={() => setStep(4)} className="flex-1" disabled={orderItems.length === 0 || orderItems.some((i) => !i.product_id)}>
+                  <Button variant="outline" onClick={() => setStep(1)} className="flex-1 border-gray-300">Back</Button>
+                  <Button onClick={() => setStep(3)} className="flex-1" disabled={orderItems.length === 0 || orderItems.some((i) => !i.product_id)}>
                     Next: Summary
                   </Button>
                 </div>
               </div>
             )}
 
-            {step === 4 && (
+            {step === 3 && (
               <div className="space-y-4">
                 <h3 className="text-sm font-semibold text-foreground">Summary</h3>
                 <div className="rounded-md border border-gray-200 p-4 space-y-3">
@@ -665,17 +719,31 @@ export default function Orders() {
                       {isNewBuyer ? newBuyer.name : buyers.find((b: any) => b.id === selectedBuyerId)?.name}
                     </span>
                   </div>
-                  <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">Godown</span>
-                    <span className="font-medium text-foreground">{godowns.find((s: any) => s.id === orderShopId)?.name}</span>
-                  </div>
+                  {(isNewBuyer ? newBuyer.phone : buyers.find((b: any) => b.id === selectedBuyerId)?.phone) && (
+                    <div className="flex justify-between text-sm">
+                      <span className="text-muted-foreground">Mobile Number</span>
+                      <span className="font-medium text-foreground">
+                        {isNewBuyer ? newBuyer.phone : buyers.find((b: any) => b.id === selectedBuyerId)?.phone}
+                      </span>
+                    </div>
+                  )}
                   <div className="border-t border-gray-200 pt-2">
                     {orderItems.map((item, idx) => {
                       const prod = products.find((p: any) => p.id === item.product_id);
+                      const pcsTotal = Number(item.qty_pcs || 0) * (item.unit_price || 0);
+                      const cbTotal = Number(item.qty_cb || 0) * (item.box_price || 0);
+                      const itemTotal = pcsTotal + cbTotal;
+
+                      const parts = [];
+                      if (Number(item.qty_pcs) > 0) parts.push(`${item.qty_pcs} Pcs @ ₹${item.unit_price}`);
+                      if (Number(item.qty_cb) > 0) parts.push(`${item.qty_cb} CB @ ₹${item.box_price}`);
+
                       return (
                         <div key={idx} className="flex justify-between text-sm py-1">
-                          <span className="text-muted-foreground">{prod?.name || "—"} × {item.qty} @ ₹{item.unit_price}</span>
-                          <span className="font-medium text-foreground">₹{(Number(item.qty) * item.unit_price).toFixed(2)}</span>
+                          <span className="text-muted-foreground">
+                            {prod?.name || "—"} ({parts.join(" + ") || "0 items"})
+                          </span>
+                          <span className="font-medium text-foreground">₹{itemTotal.toFixed(2)}</span>
                         </div>
                       );
                     })}
@@ -686,7 +754,7 @@ export default function Orders() {
                   </div>
                 </div>
                 <div className="flex gap-2">
-                  <Button variant="outline" onClick={() => setStep(3)} className="flex-1 border-gray-300">Back</Button>
+                  <Button variant="outline" onClick={() => setStep(2)} className="flex-1 border-gray-300">Back</Button>
                   <Button onClick={() => createOrder.mutate()} className="flex-1" disabled={createOrder.isPending}>
                     {createOrder.isPending ? "Creating..." : "Confirm Order"}
                   </Button>

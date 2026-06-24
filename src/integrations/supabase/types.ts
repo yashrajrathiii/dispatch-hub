@@ -14,6 +14,53 @@ export type Database = {
   }
   public: {
     Tables: {
+      check_clearances: {
+        Row: {
+          amount: number
+          buyer_id: string | null
+          check_number: string
+          bank_name: string
+          cleared: boolean
+          created_at: string
+          date: string
+          id: string
+          party_name: string
+          updated_at: string
+        }
+        Insert: {
+          amount: number
+          buyer_id?: string | null
+          check_number: string
+          bank_name: string
+          cleared?: boolean
+          created_at?: string
+          date: string
+          id?: string
+          party_name: string
+          updated_at?: string
+        }
+        Update: {
+          amount?: number
+          buyer_id?: string | null
+          check_number?: string
+          bank_name?: string
+          cleared?: boolean
+          created_at?: string
+          date?: string
+          id?: string
+          party_name?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "check_clearances_buyer_id_fkey"
+            columns: ["buyer_id"]
+            isOneToOne: false
+            referencedRelation: "buyers"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
       brands: {
         Row: {
           created_at: string
