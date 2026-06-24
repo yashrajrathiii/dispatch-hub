@@ -70,13 +70,6 @@ export default function Inventory() {
 
   // Dynamic unit list
   const [customUnits, setCustomUnits] = useState<string[]>([]);
-  const unitOptions = useMemo(() => {
-    const baseUnits = ["CB", "Bags"];
-    const dbUnits = inventory
-      .map((item: any) => item.product?.unit)
-      .filter((u: string) => u && !baseUnits.includes(u));
-    return Array.from(new Set([...baseUnits, ...dbUnits, ...customUnits]));
-  }, [inventory, customUnits]);
 
   // History panel
   const [historyPanel, setHistoryPanel] = useState<{ open: boolean; item: any | null }>({ open: false, item: null });
@@ -101,6 +94,14 @@ export default function Inventory() {
       return data;
     },
   });
+
+  const unitOptions = useMemo(() => {
+    const baseUnits = ["CB", "Bags"];
+    const dbUnits = inventory
+      .map((item: any) => item.product?.unit)
+      .filter((u: string) => u && !baseUnits.includes(u));
+    return Array.from(new Set([...baseUnits, ...dbUnits, ...customUnits]));
+  }, [inventory, customUnits]);
 
   const { data: shops = [] } = useQuery({
     queryKey: ["shops"],
