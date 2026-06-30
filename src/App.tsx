@@ -26,6 +26,7 @@ import SettingsBrands from "@/pages/SettingsBrands";
 import SettingsLocations from "@/pages/SettingsLocations";
 import SettingsUsers from "@/pages/SettingsUsers";
 import SettingsSecurity from "@/pages/SettingsSecurity";
+import SettingsIndex from "@/pages/SettingsIndex";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -84,7 +85,7 @@ const App = () => (
             </Route>
 
             <Route element={<ProtectedRoute><AppLayout title="Settings" /></ProtectedRoute>}>
-              <Route path="/settings" element={<PlaceholderPage title="Settings" />} />
+              <Route path="/settings" element={<SettingsIndex />} />
               <Route path="/settings/security" element={<SettingsSecurity />} />
             </Route>
 

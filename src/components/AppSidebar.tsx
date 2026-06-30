@@ -15,7 +15,10 @@ import {
   X,
   Key,
   FileCheck2,
+  ChevronDown,
 } from "lucide-react";
+import { useState } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 import { NavLink } from "@/components/NavLink";
 import { useAuth, AppRole } from "@/contexts/AuthContext";
 import { cn } from "@/lib/utils";
@@ -58,7 +61,12 @@ interface AppSidebarProps {
 
 export default function AppSidebar({ isOpen, onClose }: AppSidebarProps) {
   const { appUser } = useAuth();
+  const location = useLocation();
+  const navigate = useNavigate();
   const roles = appUser?.role ?? ["STAFF"];
+  const [openMenu, setOpenMenu] = useState<string | null>(
+    location.pathname.startsWith("/settings") ? "Settings" : null
+  );
   const items = allItems
     .map((item) => {
       if (item.title === "Settings") {
@@ -103,37 +111,67 @@ export default function AppSidebar({ isOpen, onClose }: AppSidebarProps) {
 
       <nav className="flex-1 overflow-y-auto px-3 py-4">
         <ul className="space-y-1">
-          {items.map((item) => (
-            <li key={item.title}>
-              <NavLink
-                to={item.url}
-                end={item.url === "/" || !!item.children}
-                className="flex items-center gap-3 rounded-md px-3 py-2.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-                activeClassName="bg-sidebar-accent text-primary border-l-[3px] border-primary font-semibold"
-                onClick={onClose}
-              >
-                <item.icon className="h-5 w-5" />
-                <span>{item.title}</span>
-              </NavLink>
-              {item.children && (
-                <ul className="ml-6 mt-1 space-y-1">
-                  {item.children.map((child) => (
-                    <li key={child.title}>
-                      <NavLink
-                        to={child.url}
-                        className="flex items-center gap-3 rounded-md px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-                        activeClassName="text-primary font-semibold"
-                        onClick={onClose}
-                      >
-                        <child.icon className="h-4 w-4" />
-                        <span>{child.title}</span>
-                      </NavLink>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </li>
-          ))}
+          {items.map((item) => {
+            if (item.children && item.children.length > 0) {
+              const isExpanded = openMenu === item.title;
+              const isActive = location.pathname.startsWith(item.url);
+              return (
+                <li key={item.title}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setOpenMenu(isExpanded ? null : item.title);
+                      navigate(item.url);
+                    }}
+                    className={cn(
+                      "flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground",
+                      isActive && "bg-sidebar-accent text-primary border-l-[3px] border-primary font-semibold"
+                    )}
+                  >
+                    <item.icon className="h-5 w-5" />
+                    <span>{item.title}</span>
+                    <ChevronDown
+                      className={cn(
+                        "ml-auto h-4 w-4 transition-transform",
+                        isExpanded && "rotate-180"
+                      )}
+                    />
+                  </button>
+                  {isExpanded && (
+                    <ul className="ml-6 mt-1 space-y-1">
+                      {item.children.map((child) => (
+                        <li key={child.title}>
+                          <NavLink
+                            to={child.url}
+                            className="flex items-center gap-3 rounded-md px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                            activeClassName="text-primary font-semibold"
+                            onClick={onClose}
+                          >
+                            <child.icon className="h-4 w-4" />
+                            <span>{child.title}</span>
+                          </NavLink>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </li>
+              );
+            }
+            return (
+              <li key={item.title}>
+                <NavLink
+                  to={item.url}
+                  end={item.url === "/"}
+                  className="flex items-center gap-3 rounded-md px-3 py-2.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                  activeClassName="bg-sidebar-accent text-primary border-l-[3px] border-primary font-semibold"
+                  onClick={onClose}
+                >
+                  <item.icon className="h-5 w-5" />
+                  <span>{item.title}</span>
+                </NavLink>
+              </li>
+            );
+          })}
         </ul>
       </nav>
     </aside>
