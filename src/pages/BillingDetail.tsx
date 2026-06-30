@@ -5,7 +5,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { ArrowLeft, Printer, Send, ExternalLink } from "lucide-react";
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 
 export default function BillingDetail() {
   const { id } = useParams<{ id: string }>();
@@ -14,6 +14,28 @@ export default function BillingDetail() {
   const queryClient = useQueryClient();
   const [billPreview, setBillPreview] = useState(false);
   const printRef = useRef<HTMLDivElement>(null);
+  const [signedUrl, setSignedUrl] = useState<string>("");
+
+  useEffect(() => {
+    if (purchase?.photo_proof_url) {
+      if (purchase.photo_proof_url.includes("walkin-proofs")) {
+        const path = purchase.photo_proof_url.split("/walkin-proofs/").pop();
+        if (path) {
+          const decodedPath = decodeURIComponent(path);
+          supabase.storage
+            .from("walkin-proofs")
+            .createSignedUrl(decodedPath, 3600)
+            .then(({ data }) => {
+              if (data?.signedUrl) {
+                setSignedUrl(data.signedUrl);
+              }
+            });
+        }
+      } else {
+        setSignedUrl(purchase.photo_proof_url);
+      }
+    }
+  }, [purchase?.photo_proof_url]);
 
   const { data: purchase, isLoading } = useQuery({
     queryKey: ["billing-detail", id],
@@ -60,6 +82,9 @@ export default function BillingDetail() {
       if (!content) return;
       const win = window.open("", "_blank");
       if (!win) return;
+      // Write only static boilerplate (no user data) to avoid HTML injection,
+      // then append the rendered bill as a cloned DOM node so any user-entered
+      // text remains inert text nodes rather than parsed markup.
       win.document.write(`
         <html><head><title>Bill</title>
         <style>
@@ -71,11 +96,11 @@ export default function BillingDetail() {
           .total { font-size: 20px; font-weight: bold; text-align: right; margin-top: 20px; }
           .info { display: flex; justify-content: space-between; margin-bottom: 20px; }
           .info div { font-size: 14px; }
-        </style></head><body>
-        ${content.innerHTML}
-        </body></html>
+        </style></head><body></body></html>
       `);
       win.document.close();
+      win.document.body.appendChild(content.cloneNode(true));
+      win.focus();
       win.print();
     }, 200);
   };
@@ -165,8 +190,8 @@ export default function BillingDetail() {
         <div className="space-y-2">
           <h3 className="text-sm font-semibold text-foreground uppercase tracking-wide">Photo Proof</h3>
           <div className="flex items-center gap-3">
-            <img src={purchase.photo_proof_url} alt="Proof" className="h-32 w-32 rounded-lg object-cover border border-border" />
-            <a href={purchase.photo_proof_url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-sm text-primary hover:underline">
+            <img src={signedUrl || purchase.photo_proof_url} alt="Proof" className="h-32 w-32 rounded-lg object-cover border border-border" />
+            <a href={signedUrl || purchase.photo_proof_url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-sm text-primary hover:underline">
               <ExternalLink className="h-4 w-4" /> View Full
             </a>
           </div>

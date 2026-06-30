@@ -42,11 +42,12 @@ export default function SettingsUsers() {
   const [editUserId, setEditUserId] = useState<string | null>(null);
 
   // Form states
-  const [form, setForm] = useState<{ name: string; emailOrPhone: string; password: string; roles: string[] }>({
+  const [form, setForm] = useState<{ name: string; emailOrPhone: string; password: string; roles: string[]; isActive: boolean }>({
     name: "",
     emailOrPhone: "",
-    password: "DispatchHub123",
+    password: "",
     roles: ["STAFF"],
+    isActive: true,
   });
 
   const { data: users = [], isLoading } = useQuery({
@@ -78,12 +79,13 @@ export default function SettingsUsers() {
   const addUserMutation = useMutation({
     mutationFn: async () => {
       if (editUserId) {
-        // Edit mode: update name and roles only
+        // Edit mode: update name, roles, and status
         const { error } = await supabase
           .from("users")
           .update({
             name: form.name,
             role: `{${form.roles.join(",")}}` as any,
+            is_active: form.isActive,
           })
           .eq("id", editUserId);
         if (error) throw error;
@@ -117,6 +119,7 @@ export default function SettingsUsers() {
             email: isEmail ? form.emailOrPhone : null,
             phone: !isEmail ? formatPhone(form.emailOrPhone) : null,
             role: `{${form.roles.join(",")}}` as any,
+            is_active: form.isActive,
           })
           .eq("auth_user_id", authUserId);
 
@@ -137,8 +140,9 @@ export default function SettingsUsers() {
       setForm({
         name: "",
         emailOrPhone: "",
-        password: "DispatchHub123",
+        password: "",
         roles: ["STAFF"],
+        isActive: true,
       });
     },
     onError: (e: any) => {
@@ -151,8 +155,9 @@ export default function SettingsUsers() {
     setForm({
       name: "",
       emailOrPhone: "",
-      password: "DispatchHub123",
+      password: "",
       roles: ["STAFF"],
+      isActive: true,
     });
     setOpen(true);
   };
@@ -164,6 +169,7 @@ export default function SettingsUsers() {
       emailOrPhone: user.email || user.phone || "",
       password: "",
       roles: Array.isArray(user.role) ? user.role : [user.role],
+      isActive: user.is_active,
     });
     setOpen(true);
   };
@@ -312,7 +318,7 @@ export default function SettingsUsers() {
                   <Label htmlFor="password">Temporary Password *</Label>
                   <Input
                     id="password"
-                    type="text"
+                    type="password"
                     value={form.password}
                     onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))}
                     placeholder="At least 6 characters"
@@ -359,6 +365,22 @@ export default function SettingsUsers() {
                   );
                 })}
               </div>
+            </div>
+
+            <div className="flex items-center justify-between border-t border-border pt-4 mt-2">
+              <div>
+                <Label htmlFor="status-toggle" className="font-semibold block cursor-pointer">Active / Approved Status</Label>
+                <span className="text-[10px] text-muted-foreground block">
+                  Inactive users will be blocked from accessing the app dashboard.
+                </span>
+              </div>
+              <input
+                id="status-toggle"
+                type="checkbox"
+                checked={form.isActive}
+                onChange={(e) => setForm((f) => ({ ...f, isActive: e.target.checked }))}
+                className="h-4.5 w-4.5 rounded border-gray-300 text-primary focus:ring-primary cursor-pointer"
+              />
             </div>
           </div>
           <DialogFooter>
